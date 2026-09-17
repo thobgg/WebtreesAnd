@@ -160,7 +160,7 @@ fun TreeSection(state: UiState, viewModel: AppViewModel, wide: Boolean, openWeb:
                 TreeCanvas(state, viewModel, wide, onPlaceholder)
 
                 // Handy: kompakte Kurzkarte am unteren Rand statt eines Panels
-                if (!wide && !state.treeFullscreen && state.selected != null) {
+                if (!wide && !state.treeFullscreen && state.selected != null && state.quickCard) {
                     QuickCard(state, viewModel, Modifier.align(Alignment.BottomCenter))
                 }
             }
@@ -191,6 +191,7 @@ private fun TreeCanvas(state: UiState, viewModel: AppViewModel, wide: Boolean, o
         compact = !wide,
         onToggleFullscreen = { viewModel.setTreeFullscreen(!state.treeFullscreen) },
         onPerson = { viewModel.select(it.xref) },
+        onBackground = viewModel::hideQuickCard,
         onPlus = { viewModel.requestAddRelative(it.xref) },
         onPlaceholder = onPlaceholder,
         onExpand = viewModel::expandAncestors,
@@ -237,7 +238,7 @@ private fun QuickCard(state: UiState, viewModel: AppViewModel, modifier: Modifie
                         Text(listOf(relation, person.lifespan).filter { it.isNotBlank() }.joinToString(" | "), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
                     }
                 }
-                IconButton(onClick = viewModel::closePanel) { Icon(Icons.Default.Close, contentDescription = stringResource(R.string.action_close)) }
+                IconButton(onClick = viewModel::hideQuickCard) { Icon(Icons.Default.Close, contentDescription = stringResource(R.string.action_close)) }
             }
             if (person != null) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 4.dp)) {

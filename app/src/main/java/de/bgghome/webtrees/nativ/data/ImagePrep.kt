@@ -25,7 +25,10 @@ object ImagePrep {
      */
     fun toUploadJpeg(resolver: ContentResolver, uri: Uri, maxBytes: Long): ByteArray? {
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-        resolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, bounds) } ?: return null
+        // Achtung: mit inJustDecodeBounds liefert decodeStream IMMER null - das Ergebnis darf nicht geprueft werden,
+        // nur die gemessene Groesse. (Genau dieser Fehler hat anfangs jedes Verkleinern verhindert.)
+        val input = resolver.openInputStream(uri) ?: return null
+        input.use { BitmapFactory.decodeStream(it, null, bounds) }
         if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
 
         // Grob beim Lesen verkleinern (spart Speicher), den Rest danach exakt.

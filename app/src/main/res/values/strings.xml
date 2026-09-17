@@ -192,4 +192,6 @@
     <string name="msg_accepted">Änderung angenommen</string>
     <string name="msg_rejected">Änderung verworfen</string>
     <string name="err_not_moderator">Freigeben dürfen nur Moderatoren und Verwalter.</string>
+    <string name="err_image_prepare">Das Bild ließ sich nicht für das Hochladen verkleinern.</string>
+    <string name="err_file_too_large">Die Datei ist mit %1$d MB zu groß – dieser Server nimmt höchstens %2$d MB an.</string>
 </resources>

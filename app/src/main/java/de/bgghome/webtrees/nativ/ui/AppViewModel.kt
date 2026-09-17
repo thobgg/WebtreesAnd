@@ -3,6 +3,7 @@ package de.bgghome.webtrees.nativ.ui
 import android.app.Application
 import android.net.Uri
 import android.provider.OpenableColumns
+import android.util.Log
 import androidx.annotation.StringRes
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -35,6 +36,9 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.IOException
+
+/** Ein Fehler, dessen Text schon fuer den Benutzer formuliert ist. */
+class UserMessageException(message: String) : Exception(message)
 
 enum class Screen { Loading, Setup, Login, Trees, Main }
 
@@ -71,6 +75,8 @@ data class UiState(
     val loadingDetail: Boolean = false,
     /** Handy: das Profil als eigene Seite (am Tablet steht es immer neben dem Baum). */
     val profileOpen: Boolean = false,
+    /** Handy: die Kurzkarte unten - nur nach einem Tipp auf eine Karte, nie von selbst beim Start. */
+    val quickCard: Boolean = false,
     val detailTab: Int = 0,
     /** "+" an einer Karte getippt: sobald die Details dieser Person da sind, oeffnet sich der Hinzufuegen-Dialog. */
     val addRelativeFor: String? = null,
@@ -290,7 +296,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
                 // Eine verworfene neue Person gibt es nicht mehr - dann nicht im Profil stehen lassen.
                 val selected = _state.value.selected
-                if (selected != null) select(selected)
+                if (selected != null) select(selected, byTap = _state.value.quickCard)
             } catch (e: Exception) {
                 _state.update { it.copy(busy = false) }
                 fail(e)
@@ -372,15 +378,15 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             val history = if (remember && it.root != null && it.root != xref) it.rootHistory + it.root else it.rootHistory
             it.copy(root = xref, rootHistory = history, pedigree = null, descendants = null, section = Section.Tree, profileOpen = false)
         }
-        select(xref)
+        select(xref, byTap = false)
     }
 
     /** Person ins Profil-Panel holen (Tipp auf eine Karte). Die Mittelperson des Baums bleibt. */
-    fun select(xref: String) {
+    fun select(xref: String, byTap: Boolean = true) {
         val tree = _state.value.tree ?: return
         val home = _state.value.home
 
-        _state.update { it.copy(selected = xref, loadingDetail = true) }
+        _state.update { it.copy(selected = xref, loadingDetail = true, quickCard = byTap) }
 
         viewModelScope.launch {
             try {
@@ -398,7 +404,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun closePanel() = _state.update { it.copy(selected = null, detail = null, profileOpen = false, addRelativeFor = null) }
+    fun closePanel() = _state.update { it.copy(selected = null, detail = null, profileOpen = false, addRelativeFor = null, quickCard = false) }
+
+    /** Tipp ins Leere: die Kurzkarte verschwindet, die Auswahl (und am Tablet das Profil) bleibt. */
+    fun hideQuickCard() = _state.update { it.copy(quickCard = false) }
 
     fun openProfile() = _state.update { it.copy(profileOpen = true) }
 
@@ -463,7 +472,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     /** "+" an einer Karte: Details der Person holen; der Dialog oeffnet sich, sobald sie da sind. */
     fun requestAddRelative(xref: String) {
         _state.update { it.copy(addRelativeFor = xref) }
-        if (_state.value.detail?.person?.xref != xref) select(xref)
+        if (_state.value.detail?.person?.xref != xref) select(xref, byTap = _state.value.quickCard)
     }
 
     fun addRelativeHandled() = _state.update { it.copy(addRelativeFor = null) }
@@ -493,7 +502,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun refresh() {
         _state.update { it.copy(pedigree = null, descendants = null) }
-        _state.value.selected?.let { select(it) }
+        _state.value.selected?.let { select(it, byTap = _state.value.quickCard) }
         loadPeople(reset = true)
         if (_state.value.mediaLoaded) loadMedia(reset = true)
         loadAnniversaries()
@@ -589,15 +598,27 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         // Verkleinern und drehen (ImagePrep); was sich nicht als Bild lesen laesst, geht unveraendert hoch.
         // Limit des Servers (meist 2-8 MB) mit etwas Luft fuer den Rest der Anfrage; aeltere Module nennen es nicht.
         val limit = (_state.value.info?.maxUpload?.takeIf { it > 0 } ?: DEFAULT_MAX_UPLOAD) * 9 / 10
-        val prepared = withContext(Dispatchers.IO) { runCatching { ImagePrep.toUploadJpeg(resolver, uri, limit) }.getOrNull() }
+        val prepared = withContext(Dispatchers.IO) {
+            runCatching { ImagePrep.toUploadJpeg(resolver, uri, limit) }
+                .onFailure { Log.w("webtreesAnd", "Bild liess sich nicht verkleinern", it) }
+                .getOrNull()
+        }
+        Log.i("webtreesAnd", "Upload $name: vorbereitet=${prepared?.size} Bytes, Limit=$limit, Server-Angabe=${_state.value.info?.maxUpload}")
 
-        if (prepared != null) {
-            client.uploadMedia(tree, xref, prepared, name.substringBeforeLast('.') + ".jpg", "image/jpeg", title)
-        } else {
-            val bytes = withContext(Dispatchers.IO) {
-                resolver.openInputStream(uri)?.use { it.readBytes() } ?: throw IOException("file not readable")
+        val mime = resolver.getType(uri).orEmpty()
+
+        when {
+            prepared != null -> client.uploadMedia(tree, xref, prepared, name.substringBeforeLast('.') + ".jpg", "image/jpeg", title)
+            // Ein Bild, das sich nicht verkleinern liess: nicht das riesige Original hinterherschicken - das scheitert
+            // am Limit des Servers nur mit einer nichtssagenden Meldung.
+            mime.startsWith("image/") -> throw UserMessageException(text(R.string.err_image_prepare))
+            else -> {
+                val bytes = withContext(Dispatchers.IO) {
+                    resolver.openInputStream(uri)?.use { it.readBytes() } ?: throw IOException("file not readable")
+                }
+                if (bytes.size > limit) throw UserMessageException(text(R.string.err_file_too_large, bytes.size / 1048576 + 1, limit / 1048576))
+                client.uploadMedia(tree, xref, bytes, name, mime.ifEmpty { "application/octet-stream" }, title)
             }
-            client.uploadMedia(tree, xref, bytes, name, resolver.getType(uri) ?: "application/octet-stream", title)
         }
     }
 
@@ -615,7 +636,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
                 // Panel und Baum zeigen den neuen Stand; die Mittelperson bleibt, wo sie ist.
                 _state.update { it.copy(pedigree = null, descendants = null, mediaLoaded = false) }
-                select(xref)
+                select(xref, byTap = _state.value.quickCard)
                 loadPeople(reset = true)
                 loadAnniversaries()
                 loadPending()
@@ -663,6 +684,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             404 -> text(R.string.err_module_missing)
             else -> text(R.string.err_unexpected, e.httpStatus)
         }
+        is UserMessageException -> e.message.orEmpty()
         is IOException -> text(R.string.err_no_connection, e.message ?: text(R.string.err_unreachable))
         else -> e.message ?: e.javaClass.simpleName
     }

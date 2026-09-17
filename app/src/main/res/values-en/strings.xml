@@ -188,4 +188,6 @@
     <string name="msg_accepted">Change accepted</string>
     <string name="msg_rejected">Change rejected</string>
     <string name="err_not_moderator">Only moderators and managers can approve changes.</string>
+    <string name="err_image_prepare">The image could not be prepared for upload.</string>
+    <string name="err_file_too_large">The file is too large (%1$d MB) – this server accepts at most %2$d MB.</string>
 </resources>
