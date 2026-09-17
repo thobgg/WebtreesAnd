@@ -21,6 +21,7 @@ import de.bgghome.webtrees.nativ.api.Person
 import de.bgghome.webtrees.nativ.api.TagInfo
 import de.bgghome.webtrees.nativ.api.TreeInfo
 import de.bgghome.webtrees.nativ.api.WriteResult
+import de.bgghome.webtrees.nativ.data.ImagePrep
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
@@ -72,6 +73,8 @@ data class UiState(
     /** "+" an einer Karte getippt: sobald die Details dieser Person da sind, oeffnet sich der Hinzufuegen-Dialog. */
     val addRelativeFor: String? = null,
     val tags: List<TagInfo> = emptyList(),
+    /** Ereignisarten fuer Familien (Heirat, Scheidung ...) */
+    val familyTags: List<TagInfo> = emptyList(),
     val recent: List<Person> = emptyList(),
     // Fotos
     val media: List<MediaJson> = emptyList(),
@@ -230,6 +233,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         if (tree.canEdit) {
             viewModelScope.launch {
                 runCatching { client.tags(tree.name, "INDI") }.onSuccess { list -> _state.update { it.copy(tags = list.data) } }
+                runCatching { client.tags(tree.name, "FAM") }.onSuccess { list -> _state.update { it.copy(familyTags = list.data) } }
             }
         }
     }
@@ -464,9 +468,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     // ── Schreiben ────────────────────────────────────────────────────
 
-    fun saveFact(request: FactRequest) = write(R.string.msg_saved) { tree, xref -> client.saveFact(tree, xref, request) }
+    /** record: XREF des Datensatzes, an dem das Ereignis haengt - eine Familie (Heirat ...) oder, wenn null, die Person im Profil. */
+    fun saveFact(request: FactRequest, record: String? = null) = write(R.string.msg_saved) { tree, xref -> client.saveFact(tree, record ?: xref, request) }
 
-    fun deleteFact(factId: String) = write(R.string.msg_deleted) { tree, xref -> client.deleteFact(tree, xref, factId) }
+    fun deleteFact(factId: String, record: String? = null) = write(R.string.msg_deleted) { tree, xref -> client.deleteFact(tree, record ?: xref, factId) }
 
     fun addRelative(request: AddIndividualRequest) = write(R.string.msg_person_created) { tree, _ ->
         client.addIndividual(tree, request)
@@ -474,18 +479,23 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun uploadPhoto(uri: Uri, title: String) = write(R.string.msg_photo_uploaded) { tree, xref ->
         val resolver = getApplication<Application>().contentResolver
-        val mime = resolver.getType(uri) ?: "image/jpeg"
         var name = "foto.jpg"
 
         resolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
             if (cursor.moveToFirst()) cursor.getString(0)?.let { name = it }
         }
 
-        val bytes = withContext(Dispatchers.IO) {
-            resolver.openInputStream(uri)?.use { it.readBytes() } ?: throw IOException("file not readable")
-        }
+        // Verkleinern und drehen (ImagePrep); was sich nicht als Bild lesen laesst, geht unveraendert hoch.
+        val prepared = withContext(Dispatchers.IO) { runCatching { ImagePrep.toUploadJpeg(resolver, uri) }.getOrNull() }
 
-        client.uploadMedia(tree, xref, bytes, name, mime, title)
+        if (prepared != null) {
+            client.uploadMedia(tree, xref, prepared, name.substringBeforeLast('.') + ".jpg", "image/jpeg", title)
+        } else {
+            val bytes = withContext(Dispatchers.IO) {
+                resolver.openInputStream(uri)?.use { it.readBytes() } ?: throw IOException("file not readable")
+            }
+            client.uploadMedia(tree, xref, bytes, name, resolver.getType(uri) ?: "application/octet-stream", title)
+        }
     }
 
     private fun write(@StringRes done: Int, action: suspend (tree: String, xref: String) -> WriteResult) {

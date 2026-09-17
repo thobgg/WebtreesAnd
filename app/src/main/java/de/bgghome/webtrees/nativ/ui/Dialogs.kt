@@ -48,6 +48,24 @@ fun ConfirmDialog(title: String, text: String, confirm: String, onDismiss: () ->
     )
 }
 
+/** Einfache Auswahl aus einer kurzen Liste (z. B. zu welcher Partnerschaft ein Ereignis gehoert). */
+@Composable
+fun ChoiceDialog(title: String, options: List<Pair<String, String>>, onDismiss: () -> Unit, onChoose: (String) -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = {
+            Column {
+                options.forEach { (key, label) ->
+                    TextButton(onClick = { onChoose(key) }, modifier = Modifier.fillMaxWidth()) { Text(label) }
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } },
+    )
+}
+
 /** fact == null: neues Ereignis (mit Auswahl der Art), sonst Aendern. */
 @Composable
 fun FactDialog(fact: FactJson?, tags: List<TagInfo>, onDismiss: () -> Unit, onSave: (FactRequest) -> Unit) {

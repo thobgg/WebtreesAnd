@@ -149,4 +149,8 @@
     <string name="person_private">Private</string>
     <!-- Sprache dieser Datei; die App nennt sie dem Server, damit dessen Beschriftungen dazu passen. -->
     <string name="api_language">en</string>
+    <string name="action_take_photo">Take photo</string>
+    <string name="action_pick_photo">Choose photo</string>
+    <string name="action_add_family_event">Add marriage or family event</string>
+    <string name="family_pick_title">Which partnership?</string>
 </resources>

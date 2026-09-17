@@ -82,6 +82,7 @@ dependencies {
     debugImplementation(libs.androidx.compose.ui.tooling)
 
     implementation(libs.coil.compose)
+    implementation(libs.androidx.exifinterface)
     implementation(libs.okhttp)
     implementation(libs.kotlinx.serialization.json)
 

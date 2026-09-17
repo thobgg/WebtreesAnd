@@ -1,5 +1,6 @@
 package de.bgghome.webtrees.nativ.ui
 
+import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -46,11 +47,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.core.content.FileProvider
 import coil.compose.AsyncImage
 import de.bgghome.webtrees.nativ.R
 import de.bgghome.webtrees.nativ.api.FactJson
@@ -58,6 +61,7 @@ import de.bgghome.webtrees.nativ.api.FamilyJson
 import de.bgghome.webtrees.nativ.api.IndividualDetail
 import de.bgghome.webtrees.nativ.api.MediaJson
 import de.bgghome.webtrees.nativ.api.Person
+import java.io.File
 
 private val TABS = listOf(R.string.tab_facts, R.string.tab_media, R.string.tab_family)
 
@@ -69,6 +73,8 @@ private data class TimelineRow(
     val fact: FactJson?,
     val editable: Boolean,
     val child: Person? = null,
+    /** Familien-XREF, wenn das Ereignis an der Familie haengt (Heirat ...); null = an der Person */
+    val record: String? = null,
 )
 
 /**
@@ -78,9 +84,12 @@ private data class TimelineRow(
  */
 @Composable
 fun ProfilePanel(state: UiState, detail: IndividualDetail, viewModel: AppViewModel, openWeb: (String) -> Unit, onClose: (() -> Unit)?) {
-    var editFact by remember { mutableStateOf<FactJson?>(null) }
+    // Zweiter Wert: Familien-XREF, wenn das Ereignis an einer Familie haengt
+    var editFact by remember { mutableStateOf<Pair<FactJson, String?>?>(null) }
     var newFact by remember { mutableStateOf(false) }
-    var deleteFact by remember { mutableStateOf<FactJson?>(null) }
+    var newFamilyFact by remember { mutableStateOf<String?>(null) }
+    var pickFamily by remember { mutableStateOf(false) }
+    var deleteFact by remember { mutableStateOf<Pair<FactJson, String?>?>(null) }
     var addMenu by remember { mutableStateOf(false) }
 
     val canEdit = detail.canEdit
@@ -91,6 +100,21 @@ fun ProfilePanel(state: UiState, detail: IndividualDetail, viewModel: AppViewMod
         if (uri != null) viewModel.uploadPhoto(uri, person.name)
     }
     val pickPhoto = { photoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }
+
+    // Kamera: die Aufnahme landet in einer eigenen Datei im Cache, die nur die Kamera-App beschreiben darf.
+    val context = LocalContext.current
+    var cameraUri by remember { mutableStateOf<Uri?>(null) }
+    val camera = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { saved ->
+        val uri = cameraUri
+        if (saved && uri != null) viewModel.uploadPhoto(uri, person.name)
+    }
+    val takePhoto = {
+        val file = File(File(context.cacheDir, "camera").apply { mkdirs() }, "aufnahme-${System.currentTimeMillis()}.jpg")
+        FileProvider.getUriForFile(context, context.packageName + ".files", file).let { uri ->
+            cameraUri = uri
+            camera.launch(uri)
+        }
+    }
 
     Surface(color = MaterialTheme.colorScheme.surface, modifier = Modifier.fillMaxSize()) {
         Box {
@@ -138,7 +162,7 @@ fun ProfilePanel(state: UiState, detail: IndividualDetail, viewModel: AppViewMod
                 }
 
                 when (state.detailTab.coerceIn(0, TABS.lastIndex)) {
-                    0 -> Timeline(detail, canEdit, onEdit = { editFact = it }, onDelete = { deleteFact = it }, onPerson = viewModel::select)
+                    0 -> Timeline(detail, canEdit, onEdit = { fact, record -> editFact = fact to record }, onDelete = { fact, record -> deleteFact = fact to record }, onPerson = viewModel::select)
                     1 -> MediaGrid(detail.media, openWeb)
                     2 -> Relatives(detail, onSelect = viewModel::select)
                 }
@@ -153,8 +177,15 @@ fun ProfilePanel(state: UiState, detail: IndividualDetail, viewModel: AppViewMod
                     DropdownMenu(expanded = addMenu, onDismissRequest = { addMenu = false }) {
                         DropdownMenuItem(text = { Text(stringResource(R.string.action_add_event)) }, onClick = { addMenu = false; newFact = true })
                         DropdownMenuItem(text = { Text(stringResource(R.string.action_add_relative)) }, onClick = { addMenu = false; viewModel.requestAddRelative(person.xref) })
+                        if (detail.spouseFamilies.isNotEmpty()) {
+                            DropdownMenuItem(text = { Text(stringResource(R.string.action_add_family_event)) }, onClick = {
+                                addMenu = false
+                                if (detail.spouseFamilies.size == 1) newFamilyFact = detail.spouseFamilies.first().xref else pickFamily = true
+                            })
+                        }
                         if (canUpload) {
-                            DropdownMenuItem(text = { Text(stringResource(R.string.action_add_photo)) }, onClick = { addMenu = false; pickPhoto() })
+                            DropdownMenuItem(text = { Text(stringResource(R.string.action_take_photo)) }, onClick = { addMenu = false; takePhoto() })
+                            DropdownMenuItem(text = { Text(stringResource(R.string.action_pick_photo)) }, onClick = { addMenu = false; pickPhoto() })
                         }
                     }
                 }
@@ -165,16 +196,27 @@ fun ProfilePanel(state: UiState, detail: IndividualDetail, viewModel: AppViewMod
     if (newFact) {
         FactDialog(fact = null, tags = state.tags, onDismiss = { newFact = false }, onSave = { newFact = false; viewModel.saveFact(it) })
     }
-    editFact?.let { fact ->
-        FactDialog(fact = fact, tags = state.tags, onDismiss = { editFact = null }, onSave = { editFact = null; viewModel.saveFact(it) })
+    newFamilyFact?.let { family ->
+        FactDialog(fact = null, tags = state.familyTags, onDismiss = { newFamilyFact = null }, onSave = { newFamilyFact = null; viewModel.saveFact(it, record = family) })
     }
-    deleteFact?.let { fact ->
+    if (pickFamily) {
+        ChoiceDialog(
+            title = stringResource(R.string.family_pick_title),
+            options = detail.spouseFamilies.map { it.xref to (it.spouse?.name ?: stringResource(R.string.unknown_person)) },
+            onDismiss = { pickFamily = false },
+            onChoose = { pickFamily = false; newFamilyFact = it },
+        )
+    }
+    editFact?.let { (fact, record) ->
+        FactDialog(fact = fact, tags = state.tags, onDismiss = { editFact = null }, onSave = { editFact = null; viewModel.saveFact(it, record) })
+    }
+    deleteFact?.let { (fact, record) ->
         ConfirmDialog(
             title = stringResource(R.string.fact_delete_title, fact.label),
             text = listOfNotNull(fact.value.takeIf { it.isNotEmpty() }, fact.date?.text, fact.place?.name).joinToString(" · "),
             confirm = stringResource(R.string.action_delete),
             onDismiss = { deleteFact = null },
-            onConfirm = { deleteFact = null; viewModel.deleteFact(fact.id) },
+            onConfirm = { deleteFact = null; viewModel.deleteFact(fact.id, record) },
         )
     }
 }
@@ -182,7 +224,7 @@ fun ProfilePanel(state: UiState, detail: IndividualDetail, viewModel: AppViewMod
 // ── Zeitleiste ───────────────────────────────────────────────────────
 
 @Composable
-private fun Timeline(detail: IndividualDetail, canEdit: Boolean, onEdit: (FactJson) -> Unit, onDelete: (FactJson) -> Unit, onPerson: (String) -> Unit) {
+private fun Timeline(detail: IndividualDetail, canEdit: Boolean, onEdit: (FactJson, String?) -> Unit, onDelete: (FactJson, String?) -> Unit, onPerson: (String) -> Unit) {
     val rows = buildList {
         // Eigene Ereignisse in der Reihenfolge von webtrees; undatierte erben den Platz des Vorgaengers.
         var last = Int.MIN_VALUE + 1
@@ -197,7 +239,8 @@ private fun Timeline(detail: IndividualDetail, canEdit: Boolean, onEdit: (FactJs
         detail.spouseFamilies.forEach { family ->
             family.facts.forEach { fact ->
                 val label = family.spouse?.name?.let { stringResource(R.string.fact_with_spouse, fact.label, it) } ?: fact.label
-                add(TimelineRow(fact.date?.jd?.takeIf { it > 0 } ?: Int.MAX_VALUE, fact.date?.year?.takeIf { it != 0 }, label, fact, editable = false))
+                // Heirat, Scheidung ... lassen sich bearbeiten - geschrieben wird an die Familie, nicht an die Person.
+                add(TimelineRow(fact.date?.jd?.takeIf { it > 0 } ?: Int.MAX_VALUE, fact.date?.year?.takeIf { it != 0 }, label, fact, editable = canEdit && fact.known, record = family.xref))
             }
             family.children.forEach { child ->
                 val date = child.birth?.date ?: return@forEach
@@ -220,7 +263,7 @@ private fun Timeline(detail: IndividualDetail, canEdit: Boolean, onEdit: (FactJs
 }
 
 @Composable
-private fun TimelineItem(row: TimelineRow, onEdit: (FactJson) -> Unit, onDelete: (FactJson) -> Unit, onPerson: (String) -> Unit) {
+private fun TimelineItem(row: TimelineRow, onEdit: (FactJson, String?) -> Unit, onDelete: (FactJson, String?) -> Unit, onPerson: (String) -> Unit) {
     val fact = row.fact ?: return
 
     Row(
@@ -245,9 +288,9 @@ private fun TimelineItem(row: TimelineRow, onEdit: (FactJson) -> Unit, onDelete:
             }
         }
         if (row.editable) {
-            IconButton(onClick = { onEdit(fact) }) { Icon(Icons.Default.Edit, contentDescription = stringResource(R.string.action_edit), tint = MaterialTheme.colorScheme.onSurfaceVariant) }
+            IconButton(onClick = { onEdit(fact, row.record) }) { Icon(Icons.Default.Edit, contentDescription = stringResource(R.string.action_edit), tint = MaterialTheme.colorScheme.onSurfaceVariant) }
             if (fact.tag != "NAME") {
-                IconButton(onClick = { onDelete(fact) }) { Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.action_delete), tint = MaterialTheme.colorScheme.onSurfaceVariant) }
+                IconButton(onClick = { onDelete(fact, row.record) }) { Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.action_delete), tint = MaterialTheme.colorScheme.onSurfaceVariant) }
             }
         }
     }
