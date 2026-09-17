@@ -76,7 +76,7 @@
     <string name="date_hint">z. B. 12.3.1890 · um 1850 · vor 1900 · 1900-1910</string>
     <string name="fact_new">Neues Ereignis</string>
     <string name="fact_choose_type">Art wählen</string>
-    <string name="fact_name_hint">Nachname zwischen Schrägstriche: Vorname /Nachname/</string>
+    <string name="fact_name_hint">Nachname zwischen Schrägstrichen: Vorname /Nachname/</string>
     <string name="fact_text">Text</string>
     <string name="fact_value_hint">Angabe (z. B. Beruf) – bei Geburt, Tod … leer lassen</string>
     <string name="fact_date">Datum</string>
