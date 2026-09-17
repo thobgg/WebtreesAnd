@@ -194,4 +194,5 @@
     <string name="setup_address_help">You find the address in your browser: open your family site and copy the address at the top – the app trims the rest.</string>
     <string name="setup_pair_hint">Even easier: in webtrees, open the “App” menu and tap “Connect now” – then there is nothing to type here.</string>
     <string name="err_pair">The connect code has expired or was already used. Open the “App” page in webtrees again and tap “Connect now”.</string>
+    <string name="err_tree_disabled">The manager has not enabled this family tree for the app.</string>
 </resources>

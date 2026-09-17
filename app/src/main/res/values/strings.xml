@@ -198,4 +198,5 @@
     <string name="setup_address_help">Die Adresse findest du im Browser: deine Familienseite öffnen und die Adresse oben kopieren – den Rest kürzt die App selbst.</string>
     <string name="setup_pair_hint">Noch einfacher: In webtrees im Menü „App“ auf „Jetzt verbinden“ tippen – dann musst du hier gar nichts eingeben.</string>
     <string name="err_pair">Der Verbinden-Code ist abgelaufen oder wurde schon benutzt. Öffne in webtrees die Seite „App“ erneut und tippe auf „Jetzt verbinden“.</string>
+    <string name="err_tree_disabled">Dieser Stammbaum ist vom Verwalter nicht für die App freigegeben.</string>
 </resources>

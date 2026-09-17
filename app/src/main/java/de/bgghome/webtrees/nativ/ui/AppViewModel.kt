@@ -702,6 +702,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             "upload-failed" -> text(R.string.err_upload_failed)
             "link-not-found" -> text(R.string.err_link_not_found)
             "not-moderator" -> text(R.string.err_not_moderator)
+            "tree-disabled" -> text(R.string.err_tree_disabled)
             "pair-invalid", "pair-expired" -> text(R.string.err_pair)
             "not-supported" -> text(R.string.err_not_supported)
             else -> text(R.string.err_rejected, e.code)
