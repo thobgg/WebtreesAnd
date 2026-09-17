@@ -2,6 +2,11 @@
 
 [Deutsch](README.md) · **English**
 
+### [⬇ Download the APK](https://github.com/thobgg/WebtreesAnd/releases/latest)
+
+Signed. To install outside the Play Store, Android asks once to allow your browser to install apps.
+Your webtrees server needs the [WebtreesAnd API](https://github.com/thobgg/webtreesand-api) module.
+
 A native Android app for [webtrees](https://webtrees.net/) – view **and edit** your family tree on phone and tablet,
 with your own data on your own server.
 
@@ -42,8 +47,10 @@ webtrees server (2.2.x). The webtrees core stays untouched.
   moderator.
 - Stored on the device: server address, user name and the session cookie – **never the password**. No cloud backup of
   the app data, no analytics, no ads, no Google services.
-- Permissions: internet; notifications only if you switch on the reminder. “Take photo” needs no camera permission
-  (the device's camera app takes the picture).
+- Permissions: internet. For the optional daily anniversary reminder: notifications (requested only when you switch it
+  on) plus the usual rights of Android's job scheduler (network state, start after reboot, wake lock, foreground
+  service). “Take photo” needs no camera permission – the device's camera app takes the picture. No access to contacts,
+  location or files.
 
 ## Build
 

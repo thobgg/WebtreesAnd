@@ -2,6 +2,11 @@
 
 **Deutsch** · [English](README.en.md)
 
+### [⬇ APK herunterladen](https://github.com/thobgg/WebtreesAnd/releases/latest)
+
+Signiert. Für die Installation außerhalb des Play Store muss Android einmalig erlaubt werden, dass der Browser Apps installiert.
+Auf dem webtrees-Server muss das Modul [WebtreesAnd API](https://github.com/thobgg/webtreesand-api) installiert sein.
+
 Eine native Android-App für [webtrees](https://webtrees.net/) – den eigenen Stammbaum auf Handy und Tablet
 ansehen **und bearbeiten**, mit den eigenen Daten auf dem eigenen Server.
 
@@ -42,8 +47,10 @@ nach `modules_v4/` kopiert wird. Der webtrees-Kern bleibt unverändert.
   die Freigabe durch einen Moderator.
 - Gespeichert werden Serveradresse, Benutzername und das Sitzungs-Cookie – **nie das Passwort**. Kein Cloud-Backup der
   App-Daten, keine Analyse, keine Werbung, keine Google-Dienste.
-- Berechtigungen: Internet; Benachrichtigungen nur, wenn man die Erinnerung einschaltet. Für „Foto aufnehmen" ist keine
-  Kamera-Berechtigung nötig (die Kamera-App des Geräts macht das Bild).
+- Berechtigungen: Internet. Für die abschaltbare tägliche Erinnerung an Jahrestage: Benachrichtigungen (wird erst beim
+  Einschalten erfragt) sowie die üblichen Rechte des Android-Aufgabenplaners (Netzwerkstatus, Start nach Neustart,
+  Wachbleiben, Vordergrunddienst). Für „Foto aufnehmen" ist keine Kamera-Berechtigung nötig – die Kamera-App des Geräts
+  macht das Bild. Kein Zugriff auf Kontakte, Standort oder Dateien.
 
 ## Weitere Bilder
 
