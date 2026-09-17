@@ -18,6 +18,7 @@ import de.bgghome.webtrees.nativ.api.Info
 import de.bgghome.webtrees.nativ.api.MediaJson
 import de.bgghome.webtrees.nativ.api.NotJsonException
 import de.bgghome.webtrees.nativ.api.Pedigree
+import de.bgghome.webtrees.nativ.api.PendingRecord
 import de.bgghome.webtrees.nativ.api.Person
 import de.bgghome.webtrees.nativ.api.TagInfo
 import de.bgghome.webtrees.nativ.api.TreeInfo
@@ -78,6 +79,8 @@ data class UiState(
     val familyTags: List<TagInfo> = emptyList(),
     val recent: List<Person> = emptyList(),
     val anniversaries: List<Anniversary> = emptyList(),
+    /** Fuer Moderatoren: Datensaetze, deren Aenderungen auf Freigabe warten */
+    val pending: List<PendingRecord> = emptyList(),
     val reminders: Boolean = false,
     // Fotos
     val media: List<MediaJson> = emptyList(),
@@ -93,6 +96,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         const val MIN_API = 1
         /** So viele Generationen kommen je Tipp auf "weiter nach oben" dazu (die angetippte Person mitgezaehlt). */
         const val EXPAND_GENERATIONS = 3
+        /** Nennt der Server sein Upload-Limit nicht: der PHP-Standard von 2 MB. */
+        const val DEFAULT_MAX_UPLOAD = 2L * 1024 * 1024
         /** Ab dieser API-Stufe: Jahrestage, Datensatz loeschen, Verknuepfung loesen. */
         const val API_ANNIVERSARIES = 4
         /** Ab dieser API-Stufe kennt das Modul MediaList, relationship und die Personenzahl. */
@@ -237,6 +242,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         if (home != null) setRoot(home, remember = false)
 
         loadAnniversaries()
+        loadPending()
 
         if (tree.canEdit) {
             viewModelScope.launch {
@@ -258,6 +264,38 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun setSection(section: Section) {
         _state.update { it.copy(section = section, treeFullscreen = false, profileOpen = false) }
         if (section == Section.Photos && !_state.value.mediaLoaded) loadMedia(reset = true)
+    }
+
+    private fun loadPending() {
+        val tree = _state.value.tree ?: return
+        if (!tree.canModerate) return
+
+        viewModelScope.launch {
+            runCatching { client.pending(tree.name) }.onSuccess { list -> _state.update { it.copy(pending = list.data) } }
+        }
+    }
+
+    /** Freigabe: xref = null heisst "alle". Danach zeigen Baum und Profil den neuen Stand. */
+    fun moderate(xref: String?, accept: Boolean) {
+        val tree = _state.value.tree ?: return
+
+        _state.update { it.copy(busy = true) }
+
+        viewModelScope.launch {
+            try {
+                client.moderate(tree.name, xref, accept)
+                _state.update { it.copy(busy = false, message = text(if (accept) R.string.msg_accepted else R.string.msg_rejected), pedigree = null, descendants = null) }
+                loadPending()
+                loadPeople(reset = true)
+
+                // Eine verworfene neue Person gibt es nicht mehr - dann nicht im Profil stehen lassen.
+                val selected = _state.value.selected
+                if (selected != null) select(selected)
+            } catch (e: Exception) {
+                _state.update { it.copy(busy = false) }
+                fail(e)
+            }
+        }
     }
 
     val anniversariesSupported: Boolean get() = (_state.value.info?.api ?: 0) >= API_ANNIVERSARIES
@@ -458,6 +496,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         _state.value.selected?.let { select(it) }
         loadPeople(reset = true)
         if (_state.value.mediaLoaded) loadMedia(reset = true)
+        loadAnniversaries()
+        loadPending()
     }
 
     // ── Fotos ────────────────────────────────────────────────────────
@@ -521,6 +561,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     )
                 }
                 loadPeople(reset = true)
+                loadPending()
 
                 if (wasRoot) {
                     val next = _state.value.rootHistory.lastOrNull() ?: _state.value.home?.takeIf { it != xref }
@@ -546,7 +587,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
 
         // Verkleinern und drehen (ImagePrep); was sich nicht als Bild lesen laesst, geht unveraendert hoch.
-        val prepared = withContext(Dispatchers.IO) { runCatching { ImagePrep.toUploadJpeg(resolver, uri) }.getOrNull() }
+        // Limit des Servers (meist 2-8 MB) mit etwas Luft fuer den Rest der Anfrage; aeltere Module nennen es nicht.
+        val limit = (_state.value.info?.maxUpload?.takeIf { it > 0 } ?: DEFAULT_MAX_UPLOAD) * 9 / 10
+        val prepared = withContext(Dispatchers.IO) { runCatching { ImagePrep.toUploadJpeg(resolver, uri, limit) }.getOrNull() }
 
         if (prepared != null) {
             client.uploadMedia(tree, xref, prepared, name.substringBeforeLast('.') + ".jpg", "image/jpeg", title)
@@ -575,6 +618,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 select(xref)
                 loadPeople(reset = true)
                 loadAnniversaries()
+                loadPending()
             } catch (e: Exception) {
                 _state.update { it.copy(busy = false) }
                 fail(e)
@@ -611,6 +655,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             "upload-not-allowed" -> text(R.string.err_upload_not_allowed)
             "upload-failed" -> text(R.string.err_upload_failed)
             "link-not-found" -> text(R.string.err_link_not_found)
+            "not-moderator" -> text(R.string.err_not_moderator)
             "not-supported" -> text(R.string.err_not_supported)
             else -> text(R.string.err_rejected, e.code)
         }

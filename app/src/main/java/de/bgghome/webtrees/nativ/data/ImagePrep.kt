@@ -16,9 +16,14 @@ import java.io.ByteArrayOutputStream
 object ImagePrep {
     private const val MAX_SIDE = 2560
     private const val JPEG_QUALITY = 88
+    private const val MIN_SIDE = 800
 
-    /** null, wenn sich die Datei nicht als Bild lesen laesst - dann laedt der Aufrufer sie unveraendert hoch. */
-    fun toUploadJpeg(resolver: ContentResolver, uri: Uri): ByteArray? {
+    /**
+     * @param maxBytes groesste Datei, die der Server annimmt (Info.maxUpload); es wird so lange staerker komprimiert
+     *                 und notfalls weiter verkleinert, bis das Bild hineinpasst.
+     * @return null, wenn sich die Datei nicht als Bild lesen laesst - dann laedt der Aufrufer sie unveraendert hoch.
+     */
+    fun toUploadJpeg(resolver: ContentResolver, uri: Uri, maxBytes: Long): ByteArray? {
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
         resolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, bounds) } ?: return null
         if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
@@ -48,6 +53,18 @@ object ImagePrep {
             bitmap = Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
         }
 
-        return ByteArrayOutputStream().also { bitmap.compress(Bitmap.CompressFormat.JPEG, JPEG_QUALITY, it) }.toByteArray()
+        fun encode(source: Bitmap, quality: Int): ByteArray =
+            ByteArrayOutputStream().also { source.compress(Bitmap.CompressFormat.JPEG, quality, it) }.toByteArray()
+
+        // Erst die Qualitaet senken, dann die Kantenlaenge - bis das Bild unter dem Limit liegt.
+        var current = bitmap
+        while (true) {
+            for (quality in listOf(JPEG_QUALITY, 80, 72, 64)) {
+                val bytes = encode(current, quality)
+                if (bytes.size <= maxBytes) return bytes
+            }
+            if (maxOf(current.width, current.height) <= MIN_SIDE) return encode(current, 60)
+            current = Bitmap.createScaledBitmap(current, (current.width * 0.8f).toInt(), (current.height * 0.8f).toInt(), true)
+        }
     }
 }

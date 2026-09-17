@@ -177,4 +177,15 @@
     <string name="anniv_notification_line">%1$s – %2$s %3$d years ago</string>
     <string name="menu_reminders_on">Turn on daily anniversary reminder</string>
     <string name="menu_reminders_off">Turn off daily reminder</string>
+    <!-- Freigabe -->
+    <string name="home_pending">Waiting for approval (%1$d)</string>
+    <string name="pending_accept">Accept</string>
+    <string name="pending_reject">Reject</string>
+    <string name="pending_accept_all">Accept all</string>
+    <string name="pending_new">New</string>
+    <string name="pending_changed">Changed</string>
+    <string name="pending_deleted">Deleted</string>
+    <string name="msg_accepted">Change accepted</string>
+    <string name="msg_rejected">Change rejected</string>
+    <string name="err_not_moderator">Only moderators and managers can approve changes.</string>
 </resources>

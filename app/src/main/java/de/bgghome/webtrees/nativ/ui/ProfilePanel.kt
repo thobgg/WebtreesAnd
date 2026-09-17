@@ -29,7 +29,7 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.SmallFloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -188,7 +188,8 @@ fun ProfilePanel(state: UiState, detail: IndividualDetail, viewModel: AppViewMod
             // Runder Aktionsknopf: Ereignis, Verwandte, Foto
             if (canEdit) {
                 Box(Modifier.align(Alignment.BottomEnd).padding(16.dp)) {
-                    FloatingActionButton(onClick = { addMenu = true }, containerColor = MaterialTheme.colorScheme.primary, contentColor = MaterialTheme.colorScheme.onPrimary) {
+                    // Klein gehalten: er liegt ueber der Liste und soll moeglichst wenig verdecken.
+                    SmallFloatingActionButton(onClick = { addMenu = true }, containerColor = MaterialTheme.colorScheme.primary, contentColor = MaterialTheme.colorScheme.onPrimary) {
                         Icon(Icons.Default.Add, contentDescription = stringResource(R.string.action_add))
                     }
                     DropdownMenu(expanded = addMenu, onDismissRequest = { addMenu = false }) {

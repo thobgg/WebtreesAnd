@@ -109,6 +109,8 @@ class WtClient(private val context: Context) {
     suspend fun descendants(tree: String, xref: String, generations: Int): Descendants =
         get("Descendants", tree, mapOf("xref" to xref, "generations" to generations.toString()), Descendants.serializer())
 
+    suspend fun pending(tree: String): PendingList = get("Pending", tree, emptyMap(), PendingList.serializer())
+
     suspend fun anniversaries(tree: String, days: Int): AnniversaryList =
         get("Anniversaries", tree, mapOf("days" to days.toString()), AnniversaryList.serializer())
 
@@ -165,6 +167,10 @@ class WtClient(private val context: Context) {
     suspend fun unlink(tree: String, family: String, individual: String): WriteResult =
         post("Unlink", tree, emptyMap(), jsonBody(UnlinkRequest.serializer(), UnlinkRequest(family, individual)))
 
+    /** Ausstehende Aenderungen annehmen oder verwerfen - eines Datensatzes oder (xref = null) des ganzen Baums. */
+    suspend fun moderate(tree: String, xref: String?, accept: Boolean): ModerationResult =
+        post(if (accept) "Accept" else "Reject", tree, if (xref == null) emptyMap() else mapOf("xref" to xref), jsonBody(EmptyRequest.serializer(), EmptyRequest()), ModerationResult.serializer())
+
     suspend fun addIndividual(tree: String, request: AddIndividualRequest): WriteResult =
         post("AddIndividual", tree, emptyMap(), jsonBody(AddIndividualRequest.serializer(), request))
 
@@ -214,15 +220,18 @@ class WtClient(private val context: Context) {
         return decode(execute(request), deserializer)
     }
 
-    private suspend fun post(action: String, tree: String, params: Map<String, String>, body: RequestBody): WriteResult {
-        suspend fun attempt(): WriteResult {
+    private suspend fun post(action: String, tree: String, params: Map<String, String>, body: RequestBody): WriteResult =
+        post(action, tree, params, body, WriteResult.serializer())
+
+    private suspend fun <T> post(action: String, tree: String, params: Map<String, String>, body: RequestBody, deserializer: DeserializationStrategy<T>): T {
+        suspend fun attempt(): T {
             val request = Request.Builder()
                 .url(url(apiRoute(action, tree), params))
                 .header("X-CSRF-TOKEN", csrf)
                 .post(body)
                 .build()
 
-            return decode(execute(request), WriteResult.serializer())
+            return decode(execute(request), deserializer)
         }
 
         return try {

@@ -13,6 +13,8 @@ data class Info(
     val baseUrl: String = "",
     val rewriteUrls: Boolean = false,
     val csrf: String = "",
+    /** Groesste Datei in Bytes, die der Server beim Hochladen annimmt; 0 = unbekannt (Modul vor 0.6) */
+    val maxUpload: Long = 0,
     val user: UserInfo = UserInfo(),
     val trees: List<TreeInfo> = emptyList(),
 )
@@ -33,6 +35,9 @@ data class TreeInfo(
     val role: String = "visitor",
     val canEdit: Boolean = false,
     val canUpload: Boolean = false,
+    val canModerate: Boolean = false,
+    /** Datensaetze mit ausstehenden Aenderungen (nur fuer Moderatoren gefuellt) */
+    val pending: Int = 0,
     val autoAccept: Boolean = false,
     val userXref: String = "",
     val defaultXref: String = "",
@@ -161,6 +166,24 @@ data class DescendantNode(val person: Person, val families: List<DescendantFamil
 
 @Serializable
 data class Descendants(val root: String = "", val generations: Int = 0, val tree: DescendantNode)
+
+@Serializable
+data class PendingRecord(
+    val xref: String,
+    val type: String = "",
+    val name: String = "",
+    /** new | changed | deleted */
+    val kind: String = "changed",
+    val changes: Int = 0,
+    val users: List<String> = emptyList(),
+    val time: String = "",
+)
+
+@Serializable
+data class PendingList(val data: List<PendingRecord> = emptyList())
+
+@Serializable
+data class ModerationResult(val ok: Boolean = false, val pending: Int = 0)
 
 @Serializable
 data class Anniversary(

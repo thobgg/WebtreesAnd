@@ -59,6 +59,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import de.bgghome.webtrees.nativ.R
 import de.bgghome.webtrees.nativ.api.Anniversary
+import de.bgghome.webtrees.nativ.api.PendingRecord
 import de.bgghome.webtrees.nativ.api.Person
 import de.bgghome.webtrees.nativ.ui.tree.FamilyTreeView
 import de.bgghome.webtrees.nativ.ui.tree.Placeholder
@@ -337,6 +338,21 @@ fun HomeSection(state: UiState, viewModel: AppViewModel, openWeb: (String) -> Un
                     }
                 }
             }
+            if (state.pending.isNotEmpty()) {
+                item { Text(stringResource(R.string.home_pending, state.pending.size).uppercase(), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 8.dp)) }
+                item {
+                    HomeCard(padding = false) {
+                        state.pending.forEachIndexed { index, record ->
+                            if (index > 0) HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                            PendingRow(record, onOpen = viewModel::setRoot, onDecide = { accept -> viewModel.moderate(record.xref, accept) })
+                        }
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                        Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp), horizontalArrangement = Arrangement.End) {
+                            TextButton(onClick = { viewModel.moderate(null, true) }) { Text(stringResource(R.string.pending_accept_all)) }
+                        }
+                    }
+                }
+            }
             if (viewModel.anniversariesSupported) {
                 item { Text(stringResource(R.string.home_anniversaries).uppercase(), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 8.dp)) }
                 item {
@@ -366,6 +382,28 @@ fun HomeSection(state: UiState, viewModel: AppViewModel, openWeb: (String) -> Un
             }
         }
     }
+}
+
+@Composable
+private fun PendingRow(record: PendingRecord, onOpen: (String) -> Unit, onDecide: (Boolean) -> Unit) {
+    val kind = stringResource(
+        when (record.kind) { "new" -> R.string.pending_new; "deleted" -> R.string.pending_deleted; else -> R.string.pending_changed }
+    )
+
+    ListItem(
+        overlineContent = { Text(listOf(kind, record.users.joinToString(", ")).filter { it.isNotBlank() }.joinToString(" · ")) },
+        headlineContent = { Text(record.name, maxLines = 2, overflow = TextOverflow.Ellipsis) },
+        // Knoepfe unter dem Namen: am Handy bliebe neben ihnen kein Platz fuer den Namen.
+        supportingContent = {
+            Row(Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)) {
+                TextButton(onClick = { onDecide(false) }) { Text(stringResource(R.string.pending_reject)) }
+                Button(onClick = { onDecide(true) }) { Text(stringResource(R.string.pending_accept)) }
+            }
+        },
+        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+        // Personen lassen sich vor der Entscheidung ansehen
+        modifier = if (record.type == "INDI" && record.kind != "deleted") Modifier.clickable { onOpen(record.xref) } else Modifier,
+    )
 }
 
 @Composable
