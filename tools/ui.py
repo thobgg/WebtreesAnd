@@ -7,10 +7,11 @@
   ui.py texts                 listet sichtbare Texte
   ui.py shot name             Bildschirmfoto nach /tmp/claude-1000/shots/name-s.png
 """
-import re, subprocess, sys, time
+import os, re, subprocess, sys, time
 import xml.etree.ElementTree as ET
 
-ADB = '/home/thobug/Android/Sdk/platform-tools/adb'
+# adb aus dem Android-SDK (ANDROID_HOME/ANDROID_SDK_ROOT) oder aus dem PATH
+ADB = next((os.path.join(root, 'platform-tools', 'adb') for root in (os.environ.get('ANDROID_HOME'), os.environ.get('ANDROID_SDK_ROOT'), os.path.expanduser('~/Android/Sdk')) if root and os.path.exists(os.path.join(root, 'platform-tools', 'adb'))), 'adb')
 SHOTS = '/tmp/claude-1000/shots'
 
 def adb(*args, binary=False):
