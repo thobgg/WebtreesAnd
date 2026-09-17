@@ -1,0 +1,25 @@
+# Android
+*.iml
+.gradle/
+.idea/
+.kotlin/
+local.properties
+build/
+captures/
+.externalNativeBuild/
+.cxx/
+
+# Signierung - nie committen
+keystore.properties
+*.jks
+
+# Lokale Testumgebung und Zugangsdaten.
+# testdata/ komplett: Beispielbaum und Bilder stammen aus Ahnenblatt (fremdes Urheberrecht) - nie veroeffentlichen.
+testsite/
+testdata/
+
+# Das Server-Modul ist ein eigenes Git-Repo
+webtrees-module/
+
+# Python
+__pycache__/

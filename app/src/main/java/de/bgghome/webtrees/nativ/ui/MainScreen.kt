@@ -1,0 +1,183 @@
+package de.bgghome.webtrees.nativ.ui
+
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Share
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationRail
+import androidx.compose.material3.NavigationRailItem
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Text
+import androidx.compose.material3.VerticalDivider
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
+import de.bgghome.webtrees.nativ.R
+import de.bgghome.webtrees.nativ.ui.tree.Placeholder
+
+/** Ab dieser Breite: seitliche Leiste und Profil dauerhaft neben dem Baum (Tablet, aufgeklapptes Foldable). */
+private val WIDE_MIN_WIDTH = 840.dp
+
+private data class NavItem(val section: Section, val label: Int, val icon: ImageVector)
+
+// Symbole aus dem Material-Grundsatz; "Baum" und "Fotos" bekommen eigene Zeichen, sobald ein Symbolsatz gewaehlt ist.
+private val NAV = listOf(
+    NavItem(Section.Home, R.string.nav_home, Icons.Default.Home),
+    NavItem(Section.Tree, R.string.nav_tree, Icons.Default.Share),
+    NavItem(Section.Search, R.string.nav_search, Icons.Default.Search),
+    NavItem(Section.Photos, R.string.nav_photos, Icons.Default.AccountCircle),
+)
+
+@Composable
+fun AppRoot(viewModel: AppViewModel) {
+    val state by viewModel.state.collectAsState()
+    var webUrl by remember { mutableStateOf<String?>(null) }
+
+    BackHandler(enabled = webUrl != null || viewModel.canGoBack()) {
+        if (webUrl != null) webUrl = null else viewModel.back()
+    }
+
+    webUrl?.let { url ->
+        WebFallbackScreen(url = url, onClose = { webUrl = null; viewModel.refresh() })
+        return
+    }
+
+    when (state.screen) {
+        Screen.Loading -> LoadingScreen()
+        Screen.Setup -> SetupScreen(state, viewModel::submitUrl)
+        Screen.Login -> LoginScreen(state, viewModel::login, viewModel::continueAsGuest, viewModel::changeServer)
+        Screen.Trees -> TreesScreen(state, viewModel::chooseTree, viewModel::logout, viewModel::showLogin)
+        Screen.Main -> MainScreen(state, viewModel, openWeb = { webUrl = it })
+    }
+}
+
+@Composable
+private fun MainScreen(state: UiState, viewModel: AppViewModel, openWeb: (String) -> Unit) {
+    val snackbar = remember { SnackbarHostState() }
+    var placeholderTarget by remember { mutableStateOf<RelativeTarget?>(null) }
+
+    LaunchedEffect(state.message) {
+        state.message?.let {
+            snackbar.showSnackbar(it)
+            viewModel.messageShown()
+        }
+    }
+
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        val wide = maxWidth >= WIDE_MIN_WIDTH
+        LaunchedEffect(wide) { viewModel.setWide(wide) }
+
+        // Vollbild-Baum und (am Handy) die Profilseite bekommen den ganzen Bildschirm.
+        val chrome = !state.treeFullscreen && !(state.profileOpen && !wide)
+
+        Scaffold(
+            snackbarHost = { SnackbarHost(snackbar) },
+            containerColor = MaterialTheme.colorScheme.background,
+            bottomBar = {
+                if (!wide && chrome) {
+                    NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
+                        NAV.forEach { item ->
+                            NavigationBarItem(
+                                selected = state.section == item.section, onClick = { viewModel.setSection(item.section) },
+                                icon = { Icon(item.icon, contentDescription = null) }, label = { Text(stringResource(item.label)) },
+                            )
+                        }
+                    }
+                }
+            },
+        ) { padding ->
+            Row(Modifier.padding(padding).fillMaxSize()) {
+                if (wide && chrome) {
+                    NavigationRail(containerColor = MaterialTheme.colorScheme.surface) {
+                        NAV.forEach { item ->
+                            NavigationRailItem(
+                                selected = state.section == item.section, onClick = { viewModel.setSection(item.section) },
+                                icon = { Icon(item.icon, contentDescription = null) }, label = { Text(stringResource(item.label)) },
+                            )
+                        }
+                    }
+                    VerticalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                }
+
+                Column(Modifier.weight(1f).fillMaxSize()) {
+                    if (state.busy && state.section != Section.Tree) LinearProgressIndicator(Modifier.fillMaxWidth())
+
+                    when (state.section) {
+                        Section.Home -> HomeSection(state, viewModel, openWeb)
+                        Section.Tree -> TreeSection(state, viewModel, wide, openWeb, onPlaceholder = { placeholderTarget = RelativeTarget.of(it) })
+                        Section.Search -> SearchSection(state, viewModel, openWeb)
+                        Section.Photos -> PhotosSection(state, viewModel, openWeb)
+                    }
+                }
+            }
+        }
+    }
+
+    // Verwandte hinzufuegen - aus dem Profil, von der "+"-Lasche einer Karte oder von einer Geisterkarte.
+    // Die Dialoge haengen hier oben, weil am Handy das Profil gar nicht offen sein muss.
+    val detail = state.detail
+    if (state.addRelativeFor != null && detail != null && detail.person.xref == state.addRelativeFor && !state.loadingDetail) {
+        RelativeDialog(
+            target = RelativeTarget.of(detail),
+            onDismiss = viewModel::addRelativeHandled,
+            onSave = { viewModel.addRelativeHandled(); viewModel.addRelative(it) },
+        )
+    }
+    placeholderTarget?.let { target ->
+        RelativeDialog(target = target, onDismiss = { placeholderTarget = null }, onSave = { placeholderTarget = null; viewModel.addRelative(it) })
+    }
+}
+
+/** Das Drei-Punkte-Menue, in allen Bereichen gleich. */
+@Composable
+fun MainMenu(state: UiState, viewModel: AppViewModel, openWeb: (String) -> Unit) {
+    var open by remember { mutableStateOf(false) }
+
+    Box {
+        IconButton(onClick = { open = true }) { Icon(Icons.Default.MoreVert, contentDescription = stringResource(R.string.action_menu)) }
+
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            DropdownMenuItem(text = { Text(stringResource(R.string.action_reload)) }, onClick = { open = false; viewModel.refresh() })
+            if ((state.info?.trees?.size ?: 0) > 1) {
+                DropdownMenuItem(text = { Text(stringResource(R.string.menu_switch_tree)) }, onClick = { open = false; viewModel.showTreePicker() })
+            }
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.menu_open_web)) },
+                onClick = { open = false; openWeb(state.detail?.person?.url ?: state.baseUrl) },
+            )
+            if (state.info?.user?.loggedIn == true) {
+                DropdownMenuItem(text = { Text(stringResource(R.string.menu_sign_out_user, state.info.user.userName)) }, onClick = { open = false; viewModel.logout() })
+            } else {
+                DropdownMenuItem(text = { Text(stringResource(R.string.action_sign_in)) }, onClick = { open = false; viewModel.showLogin() })
+            }
+        }
+    }
+}

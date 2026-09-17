@@ -1,0 +1,336 @@
+package de.bgghome.webtrees.nativ.ui
+
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRow
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import coil.compose.AsyncImage
+import de.bgghome.webtrees.nativ.R
+import de.bgghome.webtrees.nativ.api.FactJson
+import de.bgghome.webtrees.nativ.api.FamilyJson
+import de.bgghome.webtrees.nativ.api.IndividualDetail
+import de.bgghome.webtrees.nativ.api.MediaJson
+import de.bgghome.webtrees.nativ.api.Person
+
+private val TABS = listOf(R.string.tab_facts, R.string.tab_media, R.string.tab_family)
+
+/** Eine Zeile der Zeitleiste: eigenes Ereignis, Familienereignis (Heirat) oder Geburt eines Kindes. */
+private data class TimelineRow(
+    val sortKey: Int,
+    val year: Int?,
+    val label: String,
+    val fact: FactJson?,
+    val editable: Boolean,
+    val child: Person? = null,
+)
+
+/**
+ * Profil einer Person nach dem Vorbild MyHeritage: rundes Foto, Name, "Verwandtschaft | Jahre",
+ * Reiter, Ereignisse als Zeitleiste mit der Jahreszahl links, runder Aktionsknopf.
+ * Am Tablet steht es dauerhaft links neben dem Baum, am Handy ist es eine eigene Seite.
+ */
+@Composable
+fun ProfilePanel(state: UiState, detail: IndividualDetail, viewModel: AppViewModel, openWeb: (String) -> Unit, onClose: (() -> Unit)?) {
+    var editFact by remember { mutableStateOf<FactJson?>(null) }
+    var newFact by remember { mutableStateOf(false) }
+    var deleteFact by remember { mutableStateOf<FactJson?>(null) }
+    var addMenu by remember { mutableStateOf(false) }
+
+    val canEdit = detail.canEdit
+    val canUpload = canEdit && state.tree?.canUpload == true
+    val person = detail.person
+
+    val photoPicker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+        if (uri != null) viewModel.uploadPhoto(uri, person.name)
+    }
+    val pickPhoto = { photoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }
+
+    Surface(color = MaterialTheme.colorScheme.surface, modifier = Modifier.fillMaxSize()) {
+        Box {
+            Column(Modifier.fillMaxSize()) {
+                if (state.loadingDetail || state.busy) LinearProgressIndicator(Modifier.fillMaxWidth())
+
+                // Kopf
+                Box(Modifier.fillMaxWidth()) {
+                    Column(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 20.dp, bottom = 8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                        // Tipp auf das Portraet fuegt ein Foto hinzu (wie beim Vorbild)
+                        Avatar(person, 96.dp, if (canUpload) Modifier.clip(RoundedCornerShape(48.dp)).clickable { pickPhoto() } else Modifier)
+                        Text(
+                            person.name, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold,
+                            textAlign = TextAlign.Center, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 10.dp),
+                        )
+                        val subtitle = when {
+                            detail.relationship.isNotEmpty() && person.lifespan.isNotBlank() -> stringResource(R.string.relation_and_years, detail.relationship.replaceFirstChar { it.uppercase() }, person.lifespan)
+                            detail.relationship.isNotEmpty() -> detail.relationship.replaceFirstChar { it.uppercase() }
+                            else -> person.lifespan
+                        }
+                        Text(subtitle, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
+
+                        Row(Modifier.padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            if (state.root != person.xref) {
+                                OutlinedButton(onClick = { viewModel.setRoot(person.xref) }) { Text(stringResource(R.string.action_make_root)) }
+                            }
+                            OutlinedButton(onClick = { openWeb(person.url) }) { Text(stringResource(R.string.chip_open_web)) }
+                        }
+                    }
+                    if (onClose != null) {
+                        IconButton(onClick = onClose, modifier = Modifier.align(Alignment.TopEnd)) {
+                            Icon(Icons.Default.Close, contentDescription = stringResource(R.string.action_close))
+                        }
+                    }
+                }
+
+                TabRow(selectedTabIndex = state.detailTab.coerceIn(0, TABS.lastIndex), containerColor = MaterialTheme.colorScheme.surface) {
+                    TABS.forEachIndexed { index, title ->
+                        val label = stringResource(title).uppercase()
+                        Tab(
+                            selected = state.detailTab == index, onClick = { viewModel.setDetailTab(index) },
+                            text = { Text(if (index == 1 && detail.media.isNotEmpty()) stringResource(R.string.tab_with_count, label, detail.media.size) else label, style = MaterialTheme.typography.labelLarge) },
+                        )
+                    }
+                }
+
+                when (state.detailTab.coerceIn(0, TABS.lastIndex)) {
+                    0 -> Timeline(detail, canEdit, onEdit = { editFact = it }, onDelete = { deleteFact = it }, onPerson = viewModel::select)
+                    1 -> MediaGrid(detail.media, openWeb)
+                    2 -> Relatives(detail, onSelect = viewModel::select)
+                }
+            }
+
+            // Runder Aktionsknopf: Ereignis, Verwandte, Foto
+            if (canEdit) {
+                Box(Modifier.align(Alignment.BottomEnd).padding(16.dp)) {
+                    FloatingActionButton(onClick = { addMenu = true }, containerColor = MaterialTheme.colorScheme.primary, contentColor = MaterialTheme.colorScheme.onPrimary) {
+                        Icon(Icons.Default.Add, contentDescription = stringResource(R.string.action_add))
+                    }
+                    DropdownMenu(expanded = addMenu, onDismissRequest = { addMenu = false }) {
+                        DropdownMenuItem(text = { Text(stringResource(R.string.action_add_event)) }, onClick = { addMenu = false; newFact = true })
+                        DropdownMenuItem(text = { Text(stringResource(R.string.action_add_relative)) }, onClick = { addMenu = false; viewModel.requestAddRelative(person.xref) })
+                        if (canUpload) {
+                            DropdownMenuItem(text = { Text(stringResource(R.string.action_add_photo)) }, onClick = { addMenu = false; pickPhoto() })
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if (newFact) {
+        FactDialog(fact = null, tags = state.tags, onDismiss = { newFact = false }, onSave = { newFact = false; viewModel.saveFact(it) })
+    }
+    editFact?.let { fact ->
+        FactDialog(fact = fact, tags = state.tags, onDismiss = { editFact = null }, onSave = { editFact = null; viewModel.saveFact(it) })
+    }
+    deleteFact?.let { fact ->
+        ConfirmDialog(
+            title = stringResource(R.string.fact_delete_title, fact.label),
+            text = listOfNotNull(fact.value.takeIf { it.isNotEmpty() }, fact.date?.text, fact.place?.name).joinToString(" · "),
+            confirm = stringResource(R.string.action_delete),
+            onDismiss = { deleteFact = null },
+            onConfirm = { deleteFact = null; viewModel.deleteFact(fact.id) },
+        )
+    }
+}
+
+// ── Zeitleiste ───────────────────────────────────────────────────────
+
+@Composable
+private fun Timeline(detail: IndividualDetail, canEdit: Boolean, onEdit: (FactJson) -> Unit, onDelete: (FactJson) -> Unit, onPerson: (String) -> Unit) {
+    val rows = buildList {
+        // Eigene Ereignisse in der Reihenfolge von webtrees; undatierte erben den Platz des Vorgaengers.
+        var last = Int.MIN_VALUE + 1
+        // Geschlecht steckt in der Farbe des Portraets; unbekannte Hersteller-Tags (_INET ...) sagen dem Leser nichts.
+        detail.facts.filter { it.tag != "SEX" && it.known }.forEach { fact ->
+            val key = if (fact.tag == "NAME") Int.MIN_VALUE else fact.date?.jd?.takeIf { it > 0 } ?: last
+            if (fact.tag != "NAME") last = key
+            // Name und Sperrvermerk haengen an Indexen bzw. Rechten - vorerst nur in webtrees aendern.
+            add(TimelineRow(key, fact.date?.year?.takeIf { it != 0 }, fact.label + if (fact.type.isNotEmpty()) " · ${fact.type}" else "", fact, canEdit && fact.tag != "RESN"))
+        }
+        // Heirat, Scheidung ... stehen in webtrees bei der Familie; Geburten der Kinder gehoeren in die Lebenslinie.
+        detail.spouseFamilies.forEach { family ->
+            family.facts.forEach { fact ->
+                val label = family.spouse?.name?.let { stringResource(R.string.fact_with_spouse, fact.label, it) } ?: fact.label
+                add(TimelineRow(fact.date?.jd?.takeIf { it > 0 } ?: Int.MAX_VALUE, fact.date?.year?.takeIf { it != 0 }, label, fact, editable = false))
+            }
+            family.children.forEach { child ->
+                val date = child.birth?.date ?: return@forEach
+                val label = stringResource(
+                    when (child.sex) { "M" -> R.string.timeline_birth_son; "F" -> R.string.timeline_birth_daughter; else -> R.string.timeline_birth_child },
+                    child.name,
+                )
+                add(TimelineRow(date.jd, date.year.takeIf { it != 0 }, label, FactJson(id = "child-" + child.xref, date = date, place = child.birth.place), editable = false, child = child))
+            }
+        }
+    }.sortedBy { it.sortKey }
+
+    LazyColumn(Modifier.fillMaxSize(), contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 88.dp)) {
+        // Kein key: Fakten-IDs sind Inhalts-Hashes, zwei gleichlautende Ereignisse haetten denselben.
+        items(rows) { row ->
+            TimelineItem(row, onEdit, onDelete, onPerson)
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+        }
+    }
+}
+
+@Composable
+private fun TimelineItem(row: TimelineRow, onEdit: (FactJson) -> Unit, onDelete: (FactJson) -> Unit, onPerson: (String) -> Unit) {
+    val fact = row.fact ?: return
+
+    Row(
+        Modifier.fillMaxWidth()
+            .then(if (row.child != null && !row.child.isPrivate) Modifier.clickable { onPerson(row.child.xref) } else Modifier)
+            .padding(start = 16.dp, top = 10.dp, bottom = 10.dp, end = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        // Grosse Jahreszahl links
+        Text(
+            row.year?.toString().orEmpty(), modifier = Modifier.width(64.dp),
+            style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Light, color = MaterialTheme.colorScheme.primary,
+        )
+        Column(Modifier.weight(1f)) {
+            Text(row.label, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
+            if (fact.value.isNotEmpty()) Text(fact.value, style = MaterialTheme.typography.bodyMedium)
+            val sub = listOfNotNull(fact.date?.text, fact.place?.name).joinToString(" · ")
+            if (sub.isNotEmpty()) Text(sub, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            fact.notes.forEach { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+            if (fact.sources.isNotEmpty()) {
+                Text(stringResource(R.string.fact_sources, fact.sources.joinToString("; ") { it.title }), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+        if (row.editable) {
+            IconButton(onClick = { onEdit(fact) }) { Icon(Icons.Default.Edit, contentDescription = stringResource(R.string.action_edit), tint = MaterialTheme.colorScheme.onSurfaceVariant) }
+            if (fact.tag != "NAME") {
+                IconButton(onClick = { onDelete(fact) }) { Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.action_delete), tint = MaterialTheme.colorScheme.onSurfaceVariant) }
+            }
+        }
+    }
+}
+
+// ── Verwandte ────────────────────────────────────────────────────────
+
+@Composable
+private fun Relatives(detail: IndividualDetail, onSelect: (String) -> Unit) {
+    LazyColumn(Modifier.fillMaxSize(), contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 88.dp)) {
+        detail.parentFamilies.forEach { family ->
+            item { SectionTitle(stringResource(R.string.family_parents_siblings)) }
+            item { FamilyMembers(family, self = detail.person.xref, asChild = true, onSelect = onSelect) }
+        }
+        detail.spouseFamilies.forEach { family ->
+            item {
+                SectionTitle(family.marriage?.date?.text?.let { stringResource(R.string.family_partnership_married, it) } ?: stringResource(R.string.family_partnership))
+            }
+            item { FamilyMembers(family, self = detail.person.xref, asChild = false, onSelect = onSelect) }
+        }
+        if (detail.parentFamilies.isEmpty() && detail.spouseFamilies.isEmpty()) {
+            item { Text(stringResource(R.string.family_none), Modifier.padding(16.dp), color = MaterialTheme.colorScheme.onSurfaceVariant) }
+        }
+    }
+}
+
+@Composable
+private fun SectionTitle(text: String) {
+    Text(
+        text.uppercase(), Modifier.padding(start = 16.dp, top = 18.dp, end = 16.dp, bottom = 4.dp),
+        style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+}
+
+@Composable
+private fun FamilyMembers(family: FamilyJson, self: String, asChild: Boolean, onSelect: (String) -> Unit) {
+    Column {
+        if (asChild) {
+            family.husband?.let { PersonRow(it, label = stringResource(R.string.rel_father), onClick = { onSelect(it.xref) }) }
+            family.wife?.let { PersonRow(it, label = stringResource(R.string.rel_mother), onClick = { onSelect(it.xref) }) }
+            family.children.filter { it.xref != self }.forEach { child ->
+                PersonRow(child, label = when (child.sex) { "M" -> stringResource(R.string.rel_brother); "F" -> stringResource(R.string.rel_sister); else -> stringResource(R.string.rel_sibling) }, onClick = { onSelect(child.xref) })
+            }
+        } else {
+            family.spouse?.let { PersonRow(it, label = when (it.sex) { "M" -> stringResource(R.string.rel_partner_m); "F" -> stringResource(R.string.rel_partner_f); else -> stringResource(R.string.rel_partner) }, onClick = { onSelect(it.xref) }) }
+            family.children.forEach { child ->
+                PersonRow(child, label = when (child.sex) { "M" -> stringResource(R.string.rel_son); "F" -> stringResource(R.string.rel_daughter); else -> stringResource(R.string.rel_child) }, onClick = { onSelect(child.xref) })
+            }
+        }
+    }
+}
+
+// ── Fotos einer Person ───────────────────────────────────────────────
+
+@Composable
+fun MediaGrid(media: List<MediaJson>, openWeb: (String) -> Unit, showPeople: Boolean = false, onEnd: (() -> Unit)? = null) {
+    if (media.isEmpty()) {
+        Text(stringResource(R.string.media_none), Modifier.padding(16.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
+        return
+    }
+
+    LazyVerticalGrid(
+        columns = GridCells.Adaptive(150.dp),
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(start = 8.dp, end = 8.dp, top = 8.dp, bottom = 88.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        items(media) { item ->
+            if (onEnd != null && item === media.last()) androidx.compose.runtime.LaunchedEffect(media.size) { onEnd() }
+
+            Column(Modifier.clickable { openWeb(item.url) }) {
+                Box(Modifier.fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(8.dp)).then(Modifier), contentAlignment = Alignment.Center) {
+                    Surface(color = MaterialTheme.colorScheme.surfaceVariant, modifier = Modifier.fillMaxSize()) {}
+                    if (item.thumb != null) {
+                        AsyncImage(model = item.thumb, contentDescription = item.title, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                    }
+                }
+                Text(item.title.ifEmpty { item.mime }, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(start = 2.dp, top = 4.dp))
+                if (showPeople && item.people.isNotEmpty()) {
+                    Text(item.people.joinToString(", ") { it.name }, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(start = 2.dp))
+                }
+            }
+        }
+    }
+}

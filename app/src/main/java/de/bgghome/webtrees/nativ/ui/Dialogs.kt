@@ -1,0 +1,265 @@
+package de.bgghome.webtrees.nativ.ui
+
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
+import de.bgghome.webtrees.nativ.api.AddIndividualRequest
+import de.bgghome.webtrees.nativ.api.FactJson
+import de.bgghome.webtrees.nativ.api.FactRequest
+import de.bgghome.webtrees.nativ.api.IndividualDetail
+import de.bgghome.webtrees.nativ.api.Person
+import de.bgghome.webtrees.nativ.api.TagInfo
+import de.bgghome.webtrees.nativ.data.GedcomDate
+import de.bgghome.webtrees.nativ.ui.tree.Placeholder
+import androidx.compose.ui.res.stringResource
+import de.bgghome.webtrees.nativ.R
+
+
+@Composable
+fun ConfirmDialog(title: String, text: String, confirm: String, onDismiss: () -> Unit, onConfirm: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = { if (text.isNotEmpty()) Text(text) },
+        confirmButton = { TextButton(onClick = onConfirm) { Text(confirm) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } },
+    )
+}
+
+/** fact == null: neues Ereignis (mit Auswahl der Art), sonst Aendern. */
+@Composable
+fun FactDialog(fact: FactJson?, tags: List<TagInfo>, onDismiss: () -> Unit, onSave: (FactRequest) -> Unit) {
+    var tag by remember { mutableStateOf(tags.firstOrNull()) }
+    var tagMenu by remember { mutableStateOf(false) }
+    var value by remember { mutableStateOf(fact?.value.orEmpty()) }
+    var date by remember { mutableStateOf(fact?.date?.text.orEmpty()) }
+    var place by remember { mutableStateOf(fact?.place?.name.orEmpty()) }
+    var note by remember { mutableStateOf(fact?.notes?.firstOrNull().orEmpty()) }
+
+    // Beim Aendern zeigt das Datumsfeld den Anzeigetext ("12. Maerz 1890"); nur wenn er angefasst wurde, wird er gesendet.
+    val originalDate = fact?.date?.text.orEmpty()
+    val originalNote = fact?.notes?.firstOrNull().orEmpty()
+    val isNameOrNote = fact?.tag == "NAME" || fact?.tag == "NOTE" || (fact == null && tag?.tag == "NOTE")
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(fact?.label ?: stringResource(R.string.fact_new)) },
+        text = {
+            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (fact == null) {
+                    Box {
+                        OutlinedButton(onClick = { tagMenu = true }, modifier = Modifier.fillMaxWidth()) { Text(tag?.label ?: stringResource(R.string.fact_choose_type)) }
+                        DropdownMenu(expanded = tagMenu, onDismissRequest = { tagMenu = false }) {
+                            tags.forEach { option ->
+                                DropdownMenuItem(text = { Text(option.label) }, onClick = { tag = option; tagMenu = false })
+                            }
+                        }
+                    }
+                }
+                if (fact?.tag == "NAME") {
+                    Text(stringResource(R.string.fact_name_hint), style = MaterialTheme.typography.labelMedium)
+                }
+                OutlinedTextField(
+                    value = value, onValueChange = { value = it },
+                    label = { Text(if (isNameOrNote) stringResource(R.string.fact_text) else stringResource(R.string.fact_value_hint)) },
+                    minLines = if (fact?.tag == "NOTE" || tag?.tag == "NOTE" && fact == null) 3 else 1,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                if (!isNameOrNote) {
+                    OutlinedTextField(
+                        value = date, onValueChange = { date = it }, label = { Text(stringResource(R.string.fact_date)) },
+                        supportingText = { Text(stringResource(R.string.date_hint)) }, singleLine = true, modifier = Modifier.fillMaxWidth(),
+                    )
+                    OutlinedTextField(
+                        value = place, onValueChange = { place = it }, label = { Text(stringResource(R.string.fact_place)) },
+                        supportingText = { Text(stringResource(R.string.fact_place_hint)) }, singleLine = true, modifier = Modifier.fillMaxWidth(),
+                    )
+                    OutlinedTextField(value = note, onValueChange = { note = it }, label = { Text(stringResource(R.string.fact_note)) }, minLines = 2, modifier = Modifier.fillMaxWidth())
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                enabled = fact != null || tag != null,
+                onClick = {
+                    onSave(
+                        if (fact == null) {
+                            FactRequest(
+                                tag = tag?.tag, value = value.trim(),
+                                date = GedcomDate.fromInput(date).ifEmpty { null },
+                                place = place.trim().ifEmpty { null },
+                                note = note.trim().ifEmpty { null },
+                            )
+                        } else {
+                            // Nur senden, was geaendert wurde - alles andere (Quellen, Koordinaten ...) bleibt auf dem Server unberuehrt.
+                            FactRequest(
+                                factId = fact.id,
+                                value = value.trim().takeIf { it != fact.value },
+                                date = if (date.trim() != originalDate) GedcomDate.fromInput(date) else null,
+                                place = place.trim().takeIf { it != fact.place?.name.orEmpty() },
+                                note = note.trim().takeIf { it != originalNote },
+                            )
+                        }
+                    )
+                },
+            ) { Text(stringResource(R.string.action_save)) }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } },
+    )
+}
+
+/** Wem wird jemand hinzugefuegt - und welche Beziehungen stehen zur Wahl. */
+data class RelativeTarget(
+    val person: Person,
+    /** child | spouse | father | mother */
+    val relations: List<String>,
+    /** Verbindungen, aus denen ein Kind stammen kann: Familien-XREF -> Name des Partners (null = unbekannt) */
+    val families: List<Pair<String, String?>> = emptyList(),
+) {
+    companion object {
+        fun of(detail: IndividualDetail): RelativeTarget {
+            val parents = detail.parentFamilies.firstOrNull()
+            val relations = buildList {
+                add("child"); add("spouse")
+                if (parents?.husband == null) add("father")
+                if (parents?.wife == null) add("mother")
+            }
+
+            return RelativeTarget(
+                detail.person,
+                relations,
+                detail.spouseFamilies.map { it.xref to it.spouse?.name },
+            )
+        }
+
+        fun of(placeholder: Placeholder): RelativeTarget =
+            RelativeTarget(placeholder.relativeTo, listOf(placeholder.relation), placeholder.families)
+    }
+}
+
+@Composable
+fun RelativeDialog(target: RelativeTarget, onDismiss: () -> Unit, onSave: (AddIndividualRequest) -> Unit) {
+    val person = target.person
+    val ownSurname = person.sortName.substringBefore(',', "").trim()
+
+    var relation by remember { mutableStateOf(target.relations.first()) }
+    var family by remember { mutableStateOf(target.families.firstOrNull()?.first) }
+    var given by remember { mutableStateOf("") }
+    // Naheliegender Nachname: der Vater heisst meist wie das Kind, das Kind meist wie der Vater.
+    var surname by remember(relation) {
+        mutableStateOf(if (relation == "father" || (relation == "child" && person.sex != "F")) ownSurname else "")
+    }
+    var sex by remember { mutableStateOf("U") }
+    var birthDate by remember { mutableStateOf("") }
+    var birthPlace by remember { mutableStateOf("") }
+    // Eltern eines Verstorbenen sind fast immer selbst verstorben.
+    var dead by remember(relation) { mutableStateOf((relation == "father" || relation == "mother") && person.isDead) }
+    var deathDate by remember { mutableStateOf("") }
+    var marriageDate by remember { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(if (target.relations.size == 1) stringResource(R.string.relative_title_single, relationLabel(target.relations.first()), person.name) else stringResource(R.string.relative_title, person.name)) },
+        text = {
+            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (target.relations.size > 1) ChipRow(target.relations.map { it to relationLabel(it) }, relation) { relation = it }
+
+                if (relation == "child" && target.families.size > 1) {
+                    Text(stringResource(R.string.relative_child_of), style = MaterialTheme.typography.labelMedium)
+                    ChipRow(target.families.map { it.first to (it.second ?: stringResource(R.string.unknown_person)) }, family.orEmpty()) { family = it }
+                }
+
+                OutlinedTextField(value = given, onValueChange = { given = it }, label = { Text(stringResource(R.string.field_given)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(value = surname, onValueChange = { surname = it }, label = { Text(stringResource(R.string.field_surname)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
+
+                if (relation != "father" && relation != "mother") {
+                    ChipRow(listOf("M" to stringResource(R.string.sex_male), "F" to stringResource(R.string.sex_female), "U" to stringResource(R.string.sex_unknown)), sex) { sex = it }
+                }
+
+                OutlinedTextField(value = birthDate, onValueChange = { birthDate = it }, label = { Text(stringResource(R.string.field_birth_date)) }, supportingText = { Text(stringResource(R.string.date_hint)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(value = birthPlace, onValueChange = { birthPlace = it }, label = { Text(stringResource(R.string.field_birth_place)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
+
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(checked = dead, onCheckedChange = { dead = it })
+                    Text(stringResource(R.string.field_deceased))
+                }
+                if (dead) {
+                    OutlinedTextField(value = deathDate, onValueChange = { deathDate = it }, label = { Text(stringResource(R.string.field_death_date)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                }
+                if (relation == "spouse") {
+                    OutlinedTextField(value = marriageDate, onValueChange = { marriageDate = it }, label = { Text(stringResource(R.string.field_marriage_date)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                enabled = given.isNotBlank() || surname.isNotBlank(),
+                onClick = {
+                    onSave(
+                        AddIndividualRequest(
+                            relation = relation,
+                            relativeTo = person.xref,
+                            family = family.takeIf { relation == "child" },
+                            given = given.trim(),
+                            surname = surname.trim(),
+                            sex = sex,
+                            birthDate = GedcomDate.fromInput(birthDate).ifEmpty { null },
+                            birthPlace = birthPlace.trim().ifEmpty { null },
+                            dead = dead,
+                            deathDate = GedcomDate.fromInput(deathDate).ifEmpty { null },
+                            marriageDate = GedcomDate.fromInput(marriageDate).ifEmpty { null },
+                        )
+                    )
+                },
+            ) { Text(stringResource(R.string.action_create)) }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } },
+    )
+}
+
+/** Beschriftung einer Beziehung (child | spouse | father | mother) - auch fuer die "+"-Kaestchen im Baum. */
+@Composable
+fun relationLabel(relation: String): String = stringResource(
+    when (relation) {
+        "father" -> R.string.rel_father
+        "mother" -> R.string.rel_mother
+        "spouse" -> R.string.rel_partner
+        else -> R.string.rel_child
+    }
+)
+
+@Composable
+private fun ChipRow(options: List<Pair<String, String>>, selected: String, onSelect: (String) -> Unit) {
+    // Mehrzeilig waere schoener (FlowRow), ist in dieser Compose-Version aber noch experimentell.
+    Column(verticalArrangement = Arrangement.spacedBy(0.dp)) {
+        options.chunked(3).forEach { row ->
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                row.forEach { (key, label) ->
+                    FilterChip(selected = selected == key, onClick = { onSelect(key) }, label = { Text(label) })
+                }
+            }
+        }
+    }
+}

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Nur Debug: Klartext-HTTP erlauben, damit die lokale Testinstanz (php -S, http://10.0.2.2:8377)
+     erreichbar ist. Im Release bleibt es bei HTTPS. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application android:usesCleartextTraffic="true" />
+</manifest>

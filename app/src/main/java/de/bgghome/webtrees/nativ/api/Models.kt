@@ -1,0 +1,211 @@
+package de.bgghome.webtrees.nativ.api
+
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
+
+// JSON-Formen des webtrees-Moduls "webtreesand-api" (siehe webtrees-module/webtreesand-api/README.md).
+
+@Serializable
+data class Info(
+    val api: Int = 0,
+    val module: String = "",
+    val webtrees: String = "",
+    val baseUrl: String = "",
+    val rewriteUrls: Boolean = false,
+    val csrf: String = "",
+    val user: UserInfo = UserInfo(),
+    val trees: List<TreeInfo> = emptyList(),
+)
+
+@Serializable
+data class UserInfo(
+    val loggedIn: Boolean = false,
+    val userName: String = "",
+    val realName: String = "",
+    val isAdmin: Boolean = false,
+)
+
+@Serializable
+data class TreeInfo(
+    val name: String,
+    val title: String = "",
+    val individuals: Int = 0,
+    val role: String = "visitor",
+    val canEdit: Boolean = false,
+    val canUpload: Boolean = false,
+    val autoAccept: Boolean = false,
+    val userXref: String = "",
+    val defaultXref: String = "",
+)
+
+@Serializable
+data class DateJson(val text: String = "", val year: Int = 0, val jd: Int = 0)
+
+@Serializable
+data class PlaceJson(
+    val name: String = "",
+    val short: String = "",
+    val lat: Double? = null,
+    val lng: Double? = null,
+)
+
+@Serializable
+data class EventJson(val date: DateJson? = null, val place: PlaceJson? = null)
+
+@Serializable
+data class Person(
+    val xref: String,
+    val name: String = "",
+    val sortName: String = "",
+    val sex: String = "U",
+    val isDead: Boolean = false,
+    @SerialName("private") val isPrivate: Boolean = false,
+    val lifespan: String = "",
+    val birth: EventJson? = null,
+    val death: EventJson? = null,
+    val thumb: String? = null,
+    val url: String = "",
+)
+
+@Serializable
+data class SourceRef(val xref: String = "", val title: String = "")
+
+@Serializable
+data class FactJson(
+    val id: String,
+    val tag: String = "",
+    val label: String = "",
+    /** false: Hersteller-Tag, das webtrees nicht kennt (z. B. Ahnenblatts _INET) - die App blendet es aus. */
+    val known: Boolean = true,
+    val value: String = "",
+    val type: String = "",
+    val date: DateJson? = null,
+    val place: PlaceJson? = null,
+    val notes: List<String> = emptyList(),
+    val sources: List<SourceRef> = emptyList(),
+)
+
+@Serializable
+data class MediaJson(
+    val xref: String = "",
+    val title: String = "",
+    val mime: String = "",
+    val isImage: Boolean = false,
+    val thumb: String? = null,
+    val file: String = "",
+    val url: String = "",
+    /** Nur in der Fotouebersicht (MediaList): bis zu drei verknuepfte Personen. */
+    val people: List<PersonRef> = emptyList(),
+)
+
+@Serializable
+data class PersonRef(val xref: String, val name: String = "")
+
+@Serializable
+data class MediaPage(val page: Int = 1, val nextPage: Int? = null, val data: List<MediaJson> = emptyList())
+
+@Serializable
+data class FamilyJson(
+    val xref: String,
+    val name: String = "",
+    val url: String = "",
+    val husband: Person? = null,
+    val wife: Person? = null,
+    val spouse: Person? = null,
+    val marriage: EventJson? = null,
+    val facts: List<FactJson> = emptyList(),
+    val children: List<Person> = emptyList(),
+    val media: List<MediaJson> = emptyList(),
+)
+
+@Serializable
+data class IndividualDetail(
+    val person: Person,
+    /** "Urgrossmutter" ... - Verwandtschaft zur Bezugsperson, leer wenn unbekannt (Modul ab API 2). */
+    val relationship: String = "",
+    val canEdit: Boolean = false,
+    val facts: List<FactJson> = emptyList(),
+    val parentFamilies: List<FamilyJson> = emptyList(),
+    val spouseFamilies: List<FamilyJson> = emptyList(),
+    val media: List<MediaJson> = emptyList(),
+)
+
+@Serializable
+data class PersonPage(
+    val query: String = "",
+    val page: Int = 1,
+    val nextPage: Int? = null,
+    val data: List<Person> = emptyList(),
+)
+
+@Serializable
+data class Ancestor(val n: Int, val person: Person, val hasParents: Boolean = false)
+
+@Serializable
+data class Pedigree(
+    val root: String = "",
+    val generations: Int = 0,
+    val ancestors: List<Ancestor> = emptyList(),
+)
+
+@Serializable
+data class DescendantFamily(
+    val xref: String,
+    val spouse: Person? = null,
+    val marriage: EventJson? = null,
+    val children: List<DescendantNode> = emptyList(),
+)
+
+@Serializable
+data class DescendantNode(val person: Person, val families: List<DescendantFamily> = emptyList())
+
+@Serializable
+data class Descendants(val root: String = "", val generations: Int = 0, val tree: DescendantNode)
+
+@Serializable
+data class TagInfo(val tag: String, val label: String = "", val isEvent: Boolean = false)
+
+@Serializable
+data class TagList(val type: String = "", val data: List<TagInfo> = emptyList())
+
+@Serializable
+data class WriteResult(
+    val ok: Boolean = false,
+    val xref: String = "",
+    val pending: Boolean = false,
+    val family: String? = null,
+    val media: String? = null,
+)
+
+// ── Schreib-Anfragen ─────────────────────────────────────────────────
+
+/** null = Feld nicht anfassen; "" = Feld leeren. Deshalb werden null-Werte nicht mitgeschickt. */
+@Serializable
+data class FactRequest(
+    val factId: String? = null,
+    val tag: String? = null,
+    val value: String? = null,
+    val date: String? = null,
+    val place: String? = null,
+    val note: String? = null,
+)
+
+@Serializable
+data class DeleteFactRequest(val factId: String)
+
+@Serializable
+data class AddIndividualRequest(
+    val relation: String,
+    val relativeTo: String? = null,
+    val family: String? = null,
+    val given: String = "",
+    val surname: String = "",
+    val sex: String = "U",
+    val birthDate: String? = null,
+    val birthPlace: String? = null,
+    val dead: Boolean = false,
+    val deathDate: String? = null,
+    val deathPlace: String? = null,
+    val marriageDate: String? = null,
+    val marriagePlace: String? = null,
+)
