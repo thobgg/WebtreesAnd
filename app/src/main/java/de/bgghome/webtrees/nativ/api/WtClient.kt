@@ -140,6 +140,15 @@ class WtClient(private val context: Context) {
         return info()
     }
 
+    /**
+     * Koppeln: den Einmal-Code von der Seite "App" in webtrees einloesen. Danach ist diese Sitzung angemeldet,
+     * ohne dass die App je ein Passwort gesehen hat.
+     */
+    suspend fun pair(code: String): PairResult {
+        info()
+        return post("Pair", null, emptyMap(), jsonBody(PairRequest.serializer(), PairRequest(code)), PairResult.serializer())
+    }
+
     suspend fun logout() {
         withContext(Dispatchers.IO) {
             runCatching {
@@ -223,7 +232,7 @@ class WtClient(private val context: Context) {
     private suspend fun post(action: String, tree: String, params: Map<String, String>, body: RequestBody): WriteResult =
         post(action, tree, params, body, WriteResult.serializer())
 
-    private suspend fun <T> post(action: String, tree: String, params: Map<String, String>, body: RequestBody, deserializer: DeserializationStrategy<T>): T {
+    private suspend fun <T> post(action: String, tree: String?, params: Map<String, String>, body: RequestBody, deserializer: DeserializationStrategy<T>): T {
         suspend fun attempt(): T {
             val request = Request.Builder()
                 .url(url(apiRoute(action, tree), params))

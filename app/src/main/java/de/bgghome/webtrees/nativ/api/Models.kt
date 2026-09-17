@@ -236,6 +236,12 @@ data class DeleteFactRequest(val factId: String)
 data class UnlinkRequest(val family: String, val individual: String)
 
 @Serializable
+data class PairRequest(val code: String)
+
+@Serializable
+data class PairResult(val ok: Boolean = false, val tree: String = "", val user: String = "")
+
+@Serializable
 class EmptyRequest
 
 @Serializable

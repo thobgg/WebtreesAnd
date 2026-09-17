@@ -88,6 +88,8 @@ fun SetupScreen(state: UiState, onSubmit: (String) -> Unit) {
         Button(onClick = { onSubmit(url) }, enabled = !state.busy && url.isNotBlank(), modifier = Modifier.fillMaxWidth()) {
             Text(if (state.busy) stringResource(R.string.setup_connecting) else stringResource(R.string.setup_connect))
         }
+        Text(stringResource(R.string.setup_address_help), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(stringResource(R.string.setup_pair_hint), style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 8.dp))
     }
 }
 

@@ -194,4 +194,8 @@
     <string name="err_not_moderator">Freigeben dürfen nur Moderatoren und Verwalter.</string>
     <string name="err_image_prepare">Das Bild ließ sich nicht für das Hochladen verkleinern.</string>
     <string name="err_file_too_large">Die Datei ist mit %1$d MB zu groß – dieser Server nimmt höchstens %2$d MB an.</string>
+    <!-- Koppeln -->
+    <string name="setup_address_help">Die Adresse findest du im Browser: deine Familienseite öffnen und die Adresse oben kopieren – den Rest kürzt die App selbst.</string>
+    <string name="setup_pair_hint">Noch einfacher: In webtrees im Menü „App“ auf „Jetzt verbinden“ tippen – dann musst du hier gar nichts eingeben.</string>
+    <string name="err_pair">Der Verbinden-Code ist abgelaufen oder wurde schon benutzt. Öffne in webtrees die Seite „App“ erneut und tippe auf „Jetzt verbinden“.</string>
 </resources>

@@ -181,6 +181,31 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    /**
+     * "Verbinden" aus webtrees (Link webtreesand://connect): Adresse setzen, Einmal-Code einloesen, Baum oeffnen.
+     * Eine bestehende Anmeldung an einem anderen Server wird dabei ersetzt.
+     */
+    fun connect(url: String, tree: String, code: String) {
+        if (url.isBlank() || code.isBlank()) return
+
+        client.cookieJar.clear()
+        client.baseUrl = url
+        _state.update { UiState(screen = Screen.Loading, baseUrl = client.baseUrl, busy = true) }
+
+        viewModelScope.launch {
+            try {
+                val paired = client.pair(code)
+                settings.baseUrl = client.baseUrl
+                settings.userName = paired.user
+                settings.tree = paired.tree.ifEmpty { tree }
+                _state.update { it.copy(userName = paired.user) }
+                applyInfo(client.info())
+            } catch (e: Exception) {
+                _state.update { it.copy(screen = Screen.Setup, busy = false, error = explain(e)) }
+            }
+        }
+    }
+
     /** Ohne Anmeldung weiter - zeigt, was Besucher sehen duerfen. */
     fun continueAsGuest() {
         val info = _state.value.info ?: return
@@ -677,6 +702,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             "upload-failed" -> text(R.string.err_upload_failed)
             "link-not-found" -> text(R.string.err_link_not_found)
             "not-moderator" -> text(R.string.err_not_moderator)
+            "pair-invalid", "pair-expired" -> text(R.string.err_pair)
             "not-supported" -> text(R.string.err_not_supported)
             else -> text(R.string.err_rejected, e.code)
         }
