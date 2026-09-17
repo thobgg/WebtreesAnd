@@ -58,6 +58,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import de.bgghome.webtrees.nativ.R
+import de.bgghome.webtrees.nativ.api.Anniversary
 import de.bgghome.webtrees.nativ.api.Person
 import de.bgghome.webtrees.nativ.ui.tree.FamilyTreeView
 import de.bgghome.webtrees.nativ.ui.tree.Placeholder
@@ -90,9 +91,10 @@ private fun TreeTitleBar(state: UiState, viewModel: AppViewModel, openWeb: (Stri
 }
 
 @Composable
-fun PersonRow(person: Person, selected: Boolean = false, label: String? = null, onClick: (() -> Unit)? = null) {
+fun PersonRow(person: Person, selected: Boolean = false, label: String? = null, onClick: (() -> Unit)? = null, trailing: (@Composable () -> Unit)? = null) {
     ListItem(
         leadingContent = { Avatar(person, 44.dp) },
+        trailingContent = trailing,
         overlineContent = label?.let { { Text(it) } },
         headlineContent = { Text(if (person.isPrivate) stringResource(R.string.person_private) else person.name.ifEmpty { stringResource(R.string.person_no_name) }, maxLines = 1, overflow = TextOverflow.Ellipsis) },
         supportingContent = {
@@ -335,6 +337,20 @@ fun HomeSection(state: UiState, viewModel: AppViewModel, openWeb: (String) -> Un
                     }
                 }
             }
+            if (viewModel.anniversariesSupported) {
+                item { Text(stringResource(R.string.home_anniversaries).uppercase(), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 8.dp)) }
+                item {
+                    HomeCard(padding = state.anniversaries.isEmpty()) {
+                        if (state.anniversaries.isEmpty()) {
+                            Text(stringResource(R.string.anniv_none), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        state.anniversaries.take(8).forEachIndexed { index, anniversary ->
+                            if (index > 0) HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                            AnniversaryRow(anniversary, onOpen = viewModel::setRoot)
+                        }
+                    }
+                }
+            }
             item { Text(stringResource(R.string.home_recent).uppercase(), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 8.dp)) }
             if (state.recent.isEmpty()) {
                 item { Text(stringResource(R.string.home_recent_empty), color = MaterialTheme.colorScheme.onSurfaceVariant) }
@@ -350,6 +366,25 @@ fun HomeSection(state: UiState, viewModel: AppViewModel, openWeb: (String) -> Un
             }
         }
     }
+}
+
+@Composable
+private fun AnniversaryRow(anniversary: Anniversary, onOpen: (String) -> Unit) {
+    val whoToOpen = anniversary.person ?: anniversary.couple.firstOrNull()
+    val whenText = when (anniversary.inDays) {
+        0 -> stringResource(R.string.anniv_today)
+        1 -> stringResource(R.string.anniv_tomorrow)
+        else -> stringResource(R.string.anniv_in_days, anniversary.inDays)
+    }
+
+    ListItem(
+        leadingContent = whoToOpen?.let { { Avatar(it, 44.dp) } },
+        overlineContent = { Text(whenText, color = if (anniversary.inDays == 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant) },
+        headlineContent = { Text(anniversary.name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+        supportingContent = { Text(stringResource(R.string.anniv_line, anniversary.label, anniversary.years)) },
+        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+        modifier = if (whoToOpen != null && !whoToOpen.isPrivate) Modifier.clickable { onOpen(whoToOpen.xref) } else Modifier,
+    )
 }
 
 @Composable

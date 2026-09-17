@@ -9,6 +9,7 @@ import androidx.lifecycle.viewModelScope
 import de.bgghome.webtrees.nativ.R
 import de.bgghome.webtrees.nativ.WtApp
 import de.bgghome.webtrees.nativ.api.AddIndividualRequest
+import de.bgghome.webtrees.nativ.api.Anniversary
 import de.bgghome.webtrees.nativ.api.ApiException
 import de.bgghome.webtrees.nativ.api.Descendants
 import de.bgghome.webtrees.nativ.api.FactRequest
@@ -76,6 +77,8 @@ data class UiState(
     /** Ereignisarten fuer Familien (Heirat, Scheidung ...) */
     val familyTags: List<TagInfo> = emptyList(),
     val recent: List<Person> = emptyList(),
+    val anniversaries: List<Anniversary> = emptyList(),
+    val reminders: Boolean = false,
     // Fotos
     val media: List<MediaJson> = emptyList(),
     val mediaNextPage: Int? = null,
@@ -90,6 +93,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         const val MIN_API = 1
         /** So viele Generationen kommen je Tipp auf "weiter nach oben" dazu (die angetippte Person mitgezaehlt). */
         const val EXPAND_GENERATIONS = 3
+        /** Ab dieser API-Stufe: Jahrestage, Datensatz loeschen, Verknuepfung loesen. */
+        const val API_ANNIVERSARIES = 4
         /** Ab dieser API-Stufe kennt das Modul MediaList, relationship und die Personenzahl. */
         const val API_PHOTOS = 2
         const val DESCENDANT_GENERATIONS = 3
@@ -222,6 +227,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             UiState(
                 screen = Screen.Main, baseUrl = it.baseUrl, userName = it.userName, info = it.info,
                 tree = tree, home = home, section = Section.Tree, ancestorGenerations = it.ancestorGenerations,
+                reminders = settings.reminders,
             )
         }
         loadPeople(reset = true)
@@ -229,6 +235,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         // "Das bin ich": mit der eigenen Person starten, sonst mit der Startperson des Baums.
         // Gibt es keine, wird die erste sichtbare Person genommen, sobald die Liste da ist (loadPeople).
         if (home != null) setRoot(home, remember = false)
+
+        loadAnniversaries()
 
         if (tree.canEdit) {
             viewModelScope.launch {
@@ -250,6 +258,24 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun setSection(section: Section) {
         _state.update { it.copy(section = section, treeFullscreen = false, profileOpen = false) }
         if (section == Section.Photos && !_state.value.mediaLoaded) loadMedia(reset = true)
+    }
+
+    val anniversariesSupported: Boolean get() = (_state.value.info?.api ?: 0) >= API_ANNIVERSARIES
+
+    private fun loadAnniversaries() {
+        val tree = _state.value.tree ?: return
+        if (!anniversariesSupported) return
+
+        viewModelScope.launch {
+            runCatching { client.anniversaries(tree.name, 14) }.onSuccess { list -> _state.update { it.copy(anniversaries = list.data) } }
+        }
+    }
+
+    /** Taegliche Erinnerung ein-/ausschalten. Die Erlaubnis fuer Benachrichtigungen holt die Oberflaeche vorher ein. */
+    fun setReminders(on: Boolean) {
+        settings.reminders = on
+        _state.update { it.copy(reminders = on) }
+        AnniversaryWorker.schedule(getApplication(), on)
     }
 
     val photosSupported: Boolean get() = (_state.value.info?.api ?: 0) >= API_PHOTOS
@@ -473,6 +499,40 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun deleteFact(factId: String, record: String? = null) = write(R.string.msg_deleted) { tree, xref -> client.deleteFact(tree, record ?: xref, factId) }
 
+    fun unlink(family: String, individual: String) = write(R.string.msg_unlinked) { tree, _ -> client.unlink(tree, family, individual) }
+
+    /** Person loeschen. Danach gibt es sie nicht mehr: Profil schliessen, notfalls eine andere Mittelperson nehmen. */
+    fun deletePerson(xref: String) {
+        val tree = _state.value.tree ?: return
+
+        _state.update { it.copy(busy = true) }
+
+        viewModelScope.launch {
+            try {
+                val result = client.deleteRecord(tree.name, xref)
+                val message = if (result.pending) text(R.string.msg_pending, text(R.string.msg_person_deleted)) else text(R.string.msg_person_deleted)
+                val wasRoot = _state.value.root == xref
+
+                _state.update {
+                    it.copy(
+                        busy = false, message = message, selected = null, detail = null, profileOpen = false,
+                        pedigree = null, descendants = null, mediaLoaded = false,
+                        recent = it.recent.filter { p -> p.xref != xref }, rootHistory = it.rootHistory.filter { r -> r != xref },
+                    )
+                }
+                loadPeople(reset = true)
+
+                if (wasRoot) {
+                    val next = _state.value.rootHistory.lastOrNull() ?: _state.value.home?.takeIf { it != xref }
+                    if (next != null) setRoot(next, remember = false) else _state.update { it.copy(root = null) }
+                }
+            } catch (e: Exception) {
+                _state.update { it.copy(busy = false) }
+                fail(e)
+            }
+        }
+    }
+
     fun addRelative(request: AddIndividualRequest) = write(R.string.msg_person_created) { tree, _ ->
         client.addIndividual(tree, request)
     }
@@ -514,6 +574,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 _state.update { it.copy(pedigree = null, descendants = null, mediaLoaded = false) }
                 select(xref)
                 loadPeople(reset = true)
+                loadAnniversaries()
             } catch (e: Exception) {
                 _state.update { it.copy(busy = false) }
                 fail(e)
@@ -549,6 +610,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             "name-required" -> text(R.string.err_name_required)
             "upload-not-allowed" -> text(R.string.err_upload_not_allowed)
             "upload-failed" -> text(R.string.err_upload_failed)
+            "link-not-found" -> text(R.string.err_link_not_found)
+            "not-supported" -> text(R.string.err_not_supported)
             else -> text(R.string.err_rejected, e.code)
         }
         is NotJsonException -> when (e.httpStatus) {

@@ -83,6 +83,8 @@ dependencies {
 
     implementation(libs.coil.compose)
     implementation(libs.androidx.exifinterface)
+    implementation(libs.androidx.work)
+    implementation(libs.osmdroid)
     implementation(libs.okhttp)
     implementation(libs.kotlinx.serialization.json)
 

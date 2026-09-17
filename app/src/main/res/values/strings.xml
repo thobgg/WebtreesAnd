@@ -157,4 +157,28 @@
     <string name="action_pick_photo">Foto auswählen</string>
     <string name="action_add_family_event">Heirat oder Familienereignis hinzufügen</string>
     <string name="family_pick_title">Zu welcher Partnerschaft?</string>
+    <!-- Loeschen, Jahrestage, Karte -->
+    <string name="tab_map">Karte</string>
+    <string name="map_none">Keine Ereignisse mit Ortskoordinaten.</string>
+    <string name="action_delete_person">Person löschen …</string>
+    <string name="delete_person_title">%1$s löschen?</string>
+    <string name="delete_person_text">Die Person wird aus dem Stammbaum entfernt, ihre Verknüpfungen zu Eltern, Partnern und Kindern werden gelöst. Rückgängig machen lässt sich das nur in webtrees (ausstehende Änderung ablehnen).</string>
+    <string name="action_unlink">Verknüpfung lösen</string>
+    <string name="unlink_title">Verknüpfung lösen?</string>
+    <string name="unlink_text">%1$s bleibt im Stammbaum, gehört dann aber nicht mehr zu dieser Familie.</string>
+    <string name="unlink_self_from_parents">Von diesen Eltern lösen</string>
+    <string name="msg_person_deleted">Person gelöscht</string>
+    <string name="msg_unlinked">Verknüpfung gelöst</string>
+    <string name="err_link_not_found">Diese Verknüpfung gibt es nicht (mehr).</string>
+    <string name="err_not_supported">Das unterstützt diese webtrees-Version noch nicht.</string>
+    <string name="home_anniversaries">Jahrestage</string>
+    <string name="anniv_today">Heute</string>
+    <string name="anniv_tomorrow">Morgen</string>
+    <string name="anniv_in_days">In %1$d Tagen</string>
+    <string name="anniv_line">%1$s · vor %2$d Jahren</string>
+    <string name="anniv_none">Keine Jahrestage in den nächsten zwei Wochen.</string>
+    <string name="anniv_notification_title">Jahrestage heute</string>
+    <string name="anniv_notification_line">%1$s – %2$s vor %3$d Jahren</string>
+    <string name="menu_reminders_on">Tägliche Erinnerung an Jahrestage einschalten</string>
+    <string name="menu_reminders_off">Tägliche Erinnerung ausschalten</string>
 </resources>

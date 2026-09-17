@@ -2,6 +2,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Nur fuer die (abschaltbare) taegliche Erinnerung an Jahrestage; wird erst beim Einschalten erfragt. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <!-- allowBackup=false: Der Sitzungs-Cookie und spaeter der Lese-Cache enthalten
          Daten lebender Personen und duerfen nicht in ein Cloud-Backup wandern. -->

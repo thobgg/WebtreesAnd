@@ -109,6 +109,9 @@ class WtClient(private val context: Context) {
     suspend fun descendants(tree: String, xref: String, generations: Int): Descendants =
         get("Descendants", tree, mapOf("xref" to xref, "generations" to generations.toString()), Descendants.serializer())
 
+    suspend fun anniversaries(tree: String, days: Int): AnniversaryList =
+        get("Anniversaries", tree, mapOf("days" to days.toString()), AnniversaryList.serializer())
+
     suspend fun tags(tree: String, type: String): TagList =
         get("Tags", tree, mapOf("type" to type), TagList.serializer())
 
@@ -153,6 +156,14 @@ class WtClient(private val context: Context) {
 
     suspend fun deleteFact(tree: String, xref: String, factId: String): WriteResult =
         post("DeleteFact", tree, mapOf("xref" to xref), jsonBody(DeleteFactRequest.serializer(), DeleteFactRequest(factId)))
+
+    /** Loescht den Datensatz mit der Logik von webtrees (Verweise werden entfernt, leere Familien mit geloescht). */
+    suspend fun deleteRecord(tree: String, xref: String): WriteResult =
+        post("DeleteRecord", tree, mapOf("xref" to xref), jsonBody(EmptyRequest.serializer(), EmptyRequest()))
+
+    /** Loest nur die Verknuepfung zwischen Person und Familie - beide Datensaetze bleiben. */
+    suspend fun unlink(tree: String, family: String, individual: String): WriteResult =
+        post("Unlink", tree, emptyMap(), jsonBody(UnlinkRequest.serializer(), UnlinkRequest(family, individual)))
 
     suspend fun addIndividual(tree: String, request: AddIndividualRequest): WriteResult =
         post("AddIndividual", tree, emptyMap(), jsonBody(AddIndividualRequest.serializer(), request))

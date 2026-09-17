@@ -1,6 +1,10 @@
 package de.bgghome.webtrees.nativ.ui
 
+import android.Manifest
+import android.os.Build
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -161,11 +165,29 @@ private fun MainScreen(state: UiState, viewModel: AppViewModel, openWeb: (String
 fun MainMenu(state: UiState, viewModel: AppViewModel, openWeb: (String) -> Unit) {
     var open by remember { mutableStateOf(false) }
 
+    // Benachrichtigungen brauchen ab Android 13 eine Erlaubnis - sie wird erst beim Einschalten erfragt.
+    val askNotifications = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) viewModel.setReminders(true)
+    }
+
     Box {
         IconButton(onClick = { open = true }) { Icon(Icons.Default.MoreVert, contentDescription = stringResource(R.string.action_menu)) }
 
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
             DropdownMenuItem(text = { Text(stringResource(R.string.action_reload)) }, onClick = { open = false; viewModel.refresh() })
+            if (viewModel.anniversariesSupported) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(if (state.reminders) R.string.menu_reminders_off else R.string.menu_reminders_on)) },
+                    onClick = {
+                        open = false
+                        when {
+                            state.reminders -> viewModel.setReminders(false)
+                            Build.VERSION.SDK_INT >= 33 -> askNotifications.launch(Manifest.permission.POST_NOTIFICATIONS)
+                            else -> viewModel.setReminders(true)
+                        }
+                    },
+                )
+            }
             if ((state.info?.trees?.size ?: 0) > 1) {
                 DropdownMenuItem(text = { Text(stringResource(R.string.menu_switch_tree)) }, onClick = { open = false; viewModel.showTreePicker() })
             }

@@ -163,6 +163,22 @@ data class DescendantNode(val person: Person, val families: List<DescendantFamil
 data class Descendants(val root: String = "", val generations: Int = 0, val tree: DescendantNode)
 
 @Serializable
+data class Anniversary(
+    val inDays: Int = 0,
+    val tag: String = "",
+    val label: String = "",
+    val years: Int = 0,
+    val date: DateJson? = null,
+    val xref: String = "",
+    val name: String = "",
+    val person: Person? = null,
+    val couple: List<Person> = emptyList(),
+)
+
+@Serializable
+data class AnniversaryList(val days: Int = 0, val data: List<Anniversary> = emptyList())
+
+@Serializable
 data class TagInfo(val tag: String, val label: String = "", val isEvent: Boolean = false)
 
 @Serializable
@@ -192,6 +208,12 @@ data class FactRequest(
 
 @Serializable
 data class DeleteFactRequest(val factId: String)
+
+@Serializable
+data class UnlinkRequest(val family: String, val individual: String)
+
+@Serializable
+class EmptyRequest
 
 @Serializable
 data class AddIndividualRequest(

@@ -22,9 +22,11 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FloatingActionButton
@@ -36,8 +38,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRow
+import androidx.compose.material3.ScrollableTabRow
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -63,7 +66,7 @@ import de.bgghome.webtrees.nativ.api.MediaJson
 import de.bgghome.webtrees.nativ.api.Person
 import java.io.File
 
-private val TABS = listOf(R.string.tab_facts, R.string.tab_media, R.string.tab_family)
+private val TABS = listOf(R.string.tab_facts, R.string.tab_media, R.string.tab_family, R.string.tab_map)
 
 /** Eine Zeile der Zeitleiste: eigenes Ereignis, Familienereignis (Heirat) oder Geburt eines Kindes. */
 private data class TimelineRow(
@@ -91,6 +94,9 @@ fun ProfilePanel(state: UiState, detail: IndividualDetail, viewModel: AppViewMod
     var pickFamily by remember { mutableStateOf(false) }
     var deleteFact by remember { mutableStateOf<Pair<FactJson, String?>?>(null) }
     var addMenu by remember { mutableStateOf(false) }
+    var moreMenu by remember { mutableStateOf(false) }
+    var confirmDelete by remember { mutableStateOf(false) }
+    var unlink by remember { mutableStateOf<Pair<String, Person>?>(null) }
 
     val canEdit = detail.canEdit
     val canUpload = canEdit && state.tree?.canUpload == true
@@ -149,9 +155,19 @@ fun ProfilePanel(state: UiState, detail: IndividualDetail, viewModel: AppViewMod
                             Icon(Icons.Default.Close, contentDescription = stringResource(R.string.action_close))
                         }
                     }
+                    // Seltenes und Endgueltiges steckt im Drei-Punkte-Menue, nicht im Aktionsknopf
+                    if (canEdit) {
+                        Box(Modifier.align(Alignment.TopStart)) {
+                            IconButton(onClick = { moreMenu = true }) { Icon(Icons.Default.MoreVert, contentDescription = stringResource(R.string.action_menu)) }
+                            DropdownMenu(expanded = moreMenu, onDismissRequest = { moreMenu = false }) {
+                                DropdownMenuItem(text = { Text(stringResource(R.string.action_delete_person)) }, onClick = { moreMenu = false; confirmDelete = true })
+                            }
+                        }
+                    }
                 }
 
-                TabRow(selectedTabIndex = state.detailTab.coerceIn(0, TABS.lastIndex), containerColor = MaterialTheme.colorScheme.surface) {
+                // Verschiebbar: vier Reiter passen in das schmale Tablet-Panel sonst nur mit Zeilenumbruch.
+                ScrollableTabRow(selectedTabIndex = state.detailTab.coerceIn(0, TABS.lastIndex), containerColor = MaterialTheme.colorScheme.surface, edgePadding = 4.dp) {
                     TABS.forEachIndexed { index, title ->
                         val label = stringResource(title).uppercase()
                         Tab(
@@ -164,7 +180,8 @@ fun ProfilePanel(state: UiState, detail: IndividualDetail, viewModel: AppViewMod
                 when (state.detailTab.coerceIn(0, TABS.lastIndex)) {
                     0 -> Timeline(detail, canEdit, onEdit = { fact, record -> editFact = fact to record }, onDelete = { fact, record -> deleteFact = fact to record }, onPerson = viewModel::select)
                     1 -> MediaGrid(detail.media, openWeb)
-                    2 -> Relatives(detail, onSelect = viewModel::select)
+                    2 -> Relatives(detail, canEdit, onSelect = viewModel::select, onUnlink = { family, who -> unlink = family to who })
+                    3 -> LifeMap(mapFacts(detail))
                 }
             }
 
@@ -193,6 +210,24 @@ fun ProfilePanel(state: UiState, detail: IndividualDetail, viewModel: AppViewMod
         }
     }
 
+    if (confirmDelete) {
+        ConfirmDialog(
+            title = stringResource(R.string.delete_person_title, person.name),
+            text = stringResource(R.string.delete_person_text),
+            confirm = stringResource(R.string.action_delete),
+            onDismiss = { confirmDelete = false },
+            onConfirm = { confirmDelete = false; viewModel.deletePerson(person.xref) },
+        )
+    }
+    unlink?.let { (family, who) ->
+        ConfirmDialog(
+            title = stringResource(R.string.unlink_title),
+            text = stringResource(R.string.unlink_text, who.name),
+            confirm = stringResource(R.string.action_unlink),
+            onDismiss = { unlink = null },
+            onConfirm = { unlink = null; viewModel.unlink(family, who.xref) },
+        )
+    }
     if (newFact) {
         FactDialog(fact = null, tags = state.tags, onDismiss = { newFact = false }, onSave = { newFact = false; viewModel.saveFact(it) })
     }
@@ -220,6 +255,12 @@ fun ProfilePanel(state: UiState, detail: IndividualDetail, viewModel: AppViewMod
         )
     }
 }
+
+/** Ereignisse mit Ort, zeitlich geordnet: die eigenen plus Heirat & Co. aus den Partnerschaften. */
+private fun mapFacts(detail: IndividualDetail): List<FactJson> =
+    (detail.facts + detail.spouseFamilies.flatMap { it.facts })
+        .filter { it.place != null }
+        .sortedBy { it.date?.jd?.takeIf { jd -> jd > 0 } ?: Int.MAX_VALUE }
 
 // ── Zeitleiste ───────────────────────────────────────────────────────
 
@@ -299,17 +340,17 @@ private fun TimelineItem(row: TimelineRow, onEdit: (FactJson, String?) -> Unit, 
 // ── Verwandte ────────────────────────────────────────────────────────
 
 @Composable
-private fun Relatives(detail: IndividualDetail, onSelect: (String) -> Unit) {
+private fun Relatives(detail: IndividualDetail, canEdit: Boolean, onSelect: (String) -> Unit, onUnlink: (String, Person) -> Unit) {
     LazyColumn(Modifier.fillMaxSize(), contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 88.dp)) {
         detail.parentFamilies.forEach { family ->
             item { SectionTitle(stringResource(R.string.family_parents_siblings)) }
-            item { FamilyMembers(family, self = detail.person.xref, asChild = true, onSelect = onSelect) }
+            item { FamilyMembers(family, self = detail.person, asChild = true, canEdit = canEdit, onSelect = onSelect, onUnlink = onUnlink) }
         }
         detail.spouseFamilies.forEach { family ->
             item {
                 SectionTitle(family.marriage?.date?.text?.let { stringResource(R.string.family_partnership_married, it) } ?: stringResource(R.string.family_partnership))
             }
-            item { FamilyMembers(family, self = detail.person.xref, asChild = false, onSelect = onSelect) }
+            item { FamilyMembers(family, self = detail.person, asChild = false, canEdit = canEdit, onSelect = onSelect, onUnlink = onUnlink) }
         }
         if (detail.parentFamilies.isEmpty() && detail.spouseFamilies.isEmpty()) {
             item { Text(stringResource(R.string.family_none), Modifier.padding(16.dp), color = MaterialTheme.colorScheme.onSurfaceVariant) }
@@ -326,18 +367,32 @@ private fun SectionTitle(text: String) {
 }
 
 @Composable
-private fun FamilyMembers(family: FamilyJson, self: String, asChild: Boolean, onSelect: (String) -> Unit) {
+private fun FamilyMembers(family: FamilyJson, self: Person, asChild: Boolean, canEdit: Boolean, onSelect: (String) -> Unit, onUnlink: (String, Person) -> Unit) {
+    // "Verknuepfung loesen": die Person bleibt im Baum, sie gehoert nur nicht mehr zu dieser Familie.
+    @Composable
+    fun row(person: Person, label: String) {
+        PersonRow(
+            person, label = label, onClick = { onSelect(person.xref) },
+            trailing = if (!canEdit || person.isPrivate) null else {
+                { IconButton(onClick = { onUnlink(family.xref, person) }) { Icon(Icons.Default.Clear, contentDescription = stringResource(R.string.action_unlink), tint = MaterialTheme.colorScheme.onSurfaceVariant) } }
+            },
+        )
+    }
+
     Column {
         if (asChild) {
-            family.husband?.let { PersonRow(it, label = stringResource(R.string.rel_father), onClick = { onSelect(it.xref) }) }
-            family.wife?.let { PersonRow(it, label = stringResource(R.string.rel_mother), onClick = { onSelect(it.xref) }) }
-            family.children.filter { it.xref != self }.forEach { child ->
-                PersonRow(child, label = when (child.sex) { "M" -> stringResource(R.string.rel_brother); "F" -> stringResource(R.string.rel_sister); else -> stringResource(R.string.rel_sibling) }, onClick = { onSelect(child.xref) })
+            family.husband?.let { row(it, stringResource(R.string.rel_father)) }
+            family.wife?.let { row(it, stringResource(R.string.rel_mother)) }
+            family.children.filter { it.xref != self.xref }.forEach { child ->
+                row(child, when (child.sex) { "M" -> stringResource(R.string.rel_brother); "F" -> stringResource(R.string.rel_sister); else -> stringResource(R.string.rel_sibling) })
+            }
+            if (canEdit) {
+                TextButton(onClick = { onUnlink(family.xref, self) }, modifier = Modifier.padding(start = 8.dp)) { Text(stringResource(R.string.unlink_self_from_parents)) }
             }
         } else {
-            family.spouse?.let { PersonRow(it, label = when (it.sex) { "M" -> stringResource(R.string.rel_partner_m); "F" -> stringResource(R.string.rel_partner_f); else -> stringResource(R.string.rel_partner) }, onClick = { onSelect(it.xref) }) }
+            family.spouse?.let { row(it, when (it.sex) { "M" -> stringResource(R.string.rel_partner_m); "F" -> stringResource(R.string.rel_partner_f); else -> stringResource(R.string.rel_partner) }) }
             family.children.forEach { child ->
-                PersonRow(child, label = when (child.sex) { "M" -> stringResource(R.string.rel_son); "F" -> stringResource(R.string.rel_daughter); else -> stringResource(R.string.rel_child) }, onClick = { onSelect(child.xref) })
+                row(child, when (child.sex) { "M" -> stringResource(R.string.rel_son); "F" -> stringResource(R.string.rel_daughter); else -> stringResource(R.string.rel_child) })
             }
         }
     }

@@ -153,4 +153,28 @@
     <string name="action_pick_photo">Choose photo</string>
     <string name="action_add_family_event">Add marriage or family event</string>
     <string name="family_pick_title">Which partnership?</string>
+    <!-- Loeschen, Jahrestage, Karte -->
+    <string name="tab_map">Map</string>
+    <string name="map_none">No events with place coordinates.</string>
+    <string name="action_delete_person">Delete person…</string>
+    <string name="delete_person_title">Delete %1$s?</string>
+    <string name="delete_person_text">The person is removed from the family tree and the links to parents, partners and children are removed. This can only be undone in webtrees (reject the pending change).</string>
+    <string name="action_unlink">Remove link</string>
+    <string name="unlink_title">Remove link?</string>
+    <string name="unlink_text">%1$s stays in the family tree but no longer belongs to this family.</string>
+    <string name="unlink_self_from_parents">Remove link to these parents</string>
+    <string name="msg_person_deleted">Person deleted</string>
+    <string name="msg_unlinked">Link removed</string>
+    <string name="err_link_not_found">This link does not exist (any more).</string>
+    <string name="err_not_supported">This webtrees version does not support that yet.</string>
+    <string name="home_anniversaries">Anniversaries</string>
+    <string name="anniv_today">Today</string>
+    <string name="anniv_tomorrow">Tomorrow</string>
+    <string name="anniv_in_days">In %1$d days</string>
+    <string name="anniv_line">%1$s · %2$d years ago</string>
+    <string name="anniv_none">No anniversaries in the next two weeks.</string>
+    <string name="anniv_notification_title">Anniversaries today</string>
+    <string name="anniv_notification_line">%1$s – %2$s %3$d years ago</string>
+    <string name="menu_reminders_on">Turn on daily anniversary reminder</string>
+    <string name="menu_reminders_off">Turn off daily reminder</string>
 </resources>

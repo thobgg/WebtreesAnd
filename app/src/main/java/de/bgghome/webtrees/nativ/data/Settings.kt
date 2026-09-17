@@ -15,6 +15,11 @@ class Settings(context: Context) {
         get() = prefs.getString("userName", "").orEmpty()
         set(value) = prefs.edit().putString("userName", value).apply()
 
+    /** Taegliche Erinnerung an Jahrestage (siehe AnniversaryWorker) */
+    var reminders: Boolean
+        get() = prefs.getBoolean("reminders", false)
+        set(value) = prefs.edit().putBoolean("reminders", value).apply()
+
     var tree: String
         get() = prefs.getString("tree", "").orEmpty()
         set(value) = prefs.edit().putString("tree", value).apply()

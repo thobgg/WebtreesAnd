@@ -5,6 +5,8 @@ import coil.ImageLoader
 import coil.ImageLoaderFactory
 import de.bgghome.webtrees.nativ.api.WtClient
 import de.bgghome.webtrees.nativ.data.Settings
+import org.osmdroid.config.Configuration
+import java.io.File
 
 class WtApp : Application(), ImageLoaderFactory {
 
@@ -17,6 +19,13 @@ class WtApp : Application(), ImageLoaderFactory {
         super.onCreate()
         settings = Settings(this)
         client = WtClient(this).also { it.baseUrl = settings.baseUrl }
+
+        // Karte (osmdroid): Kacheln im eigenen Cache-Ordner, ehrliche Kennung gegenueber den OSM-Servern.
+        Configuration.getInstance().apply {
+            userAgentValue = WtClient.USER_AGENT
+            osmdroidBasePath = File(cacheDir, "osmdroid")
+            osmdroidTileCache = File(cacheDir, "osmdroid/tiles")
+        }
     }
 
     // Bilder sind signierte webtrees-Routen und brauchen dieselbe Sitzung (Cookie) wie die API.
