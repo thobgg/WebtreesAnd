@@ -1,31 +1,76 @@
 # webtreesAnd
 
-Native Android-App für [webtrees](https://webtrees.net/) – Tablet zuerst, mit Lesen **und** Schreiben.
-Paket-ID `de.bgghome.webtrees.nativ`. Der gleichnamige WebView-Wrapper
-([thobgg/WebtreesAnd](https://github.com/thobgg/WebtreesAnd), auf dem Gerät „webtrees") besteht unverändert weiter.
+**Deutsch** · [English](README.en.md)
 
-webtrees hat keine API. Die App spricht deshalb mit einem eigenen webtrees-Modul, das nur in
-`modules_v4/` liegt – der webtrees-Kern bleibt unberührt:
+Eine native Android-App für [webtrees](https://webtrees.net/) – den eigenen Stammbaum auf Handy und Tablet
+ansehen **und bearbeiten**, mit den eigenen Daten auf dem eigenen Server.
+
+| Tablet | Handy |
+| - | - |
+| ![Baum und Profil nebeneinander](docs/screenshots/tablet-baum.png) | ![Baum am Handy](docs/screenshots/handy-baum.png) |
+
+<sub>Alle Bilder zeigen den frei erfundenen Demo-Stammbaum „Familie Falkenrath" (siehe [demo-tree/](demo-tree/)).</sub>
+
+## Was die App kann
+
+- **Baum als Mittelpunkt:** Sanduhr-Ansicht mit Ahnen, Partnern, Kindern und Enkeln; frei verschieben und zoomen,
+  Zweige nach oben aufklappen, jede Person zur Mittelperson machen
+- **Profil:** Lebenslauf als Zeitleiste (mit Heirat und Geburten der Kinder), Verwandtschaft zur eigenen Person
+  („Großvater väterlicherseits"), Fotos, Familie, Karte der Lebensstationen (OpenStreetMap)
+- **Bearbeiten:** Ereignisse anlegen, ändern, löschen – auch Heirat und andere Familienereignisse; Verwandte direkt im
+  Baum über das „+" an jeder Karte anlegen; Verknüpfungen lösen, Personen löschen
+- **Fotos:** aufnehmen oder auswählen und einer Person zuordnen – sie werden passend zum Upload-Limit des Servers
+  verkleinert; Fotoübersicht des ganzen Baums
+- **Jahrestage:** die nächsten Geburts-, Heirats- und Todestage, auf Wunsch mit täglicher Erinnerung
+- **Freigabe:** Moderatoren nehmen ausstehende Änderungen direkt in der App an oder verwerfen sie
+- **Handy kompakt, Tablet umfassend:** am Tablet stehen Profil und Baum nebeneinander
+- Deutsch und Englisch; die Beschriftungen des Servers kommen in der Sprache der App
+
+Alles, was (noch) nicht nativ geht, öffnet die App als webtrees-Seite in derselben Sitzung.
+
+## Voraussetzung: das webtrees-Modul
+
+webtrees hat keine Schnittstelle für Apps. Die App spricht deshalb mit dem Modul
+**[WebtreesAnd API](https://github.com/thobgg/webtreesand-api)**, das auf dem eigenen webtrees-Server (2.2.x)
+nach `modules_v4/` kopiert wird. Der webtrees-Kern bleibt unverändert.
+
+## Datenschutz
+
+- Die App meldet sich mit dem normalen webtrees-Konto an. Jede Anfrage läuft als dieser Benutzer – es gelten dieselben
+  Datenschutzregeln wie auf der Website (lebende Personen, gesperrte Einträge, private Bäume).
+- Änderungen landen sofort in webtrees: mit „Änderungen automatisch annehmen" gelten sie gleich, sonst warten sie auf
+  die Freigabe durch einen Moderator.
+- Gespeichert werden Serveradresse, Benutzername und das Sitzungs-Cookie – **nie das Passwort**. Kein Cloud-Backup der
+  App-Daten, keine Analyse, keine Werbung, keine Google-Dienste.
+- Berechtigungen: Internet; Benachrichtigungen nur, wenn man die Erinnerung einschaltet. Für „Foto aufnehmen" ist keine
+  Kamera-Berechtigung nötig (die Kamera-App des Geräts macht das Bild).
+
+## Weitere Bilder
+
+| Start mit Jahrestagen | Fotoübersicht | Profil am Handy |
+| - | - | - |
+| ![Start](docs/screenshots/tablet-start.png) | ![Fotos](docs/screenshots/tablet-fotos.png) | ![Profil](docs/screenshots/handy-profil.png) |
+
+## Selbst bauen
+
+```bash
+./gradlew :app:assembleDebug
+```
+
+`minSdk` 26, `compileSdk` 36, Kotlin und Jetpack Compose. Der Build braucht ein **JDK 21**. Für einen signierten
+Release liest der Build `keystore.properties` im Projektwurzelverzeichnis (nicht eingecheckt); fehlt die Datei, wird
+mit dem Debug-Schlüssel signiert.
 
 | Ordner | Inhalt |
 | - | - |
-| `app/` | Android-App (Kotlin, Jetpack Compose) |
-| `webtrees-module/webtreesand-api/` | das Server-Modul samt API-Beschreibung |
-| `tools/prod_check.py` | prüft Modul, Rechte und Abschottung der Bäume gegen einen echten Server |
-| `tools/ui.py` | kleine adb-Fernbedienung für UI-Tests |
-| `testsite/` | lokale webtrees-Testinstanz mit Demo-Daten (nicht im Git) |
-| `testdata/` | Ahnenblatt-Beispielbaum; Zugangsdaten in `*.env` (nicht im Git) |
+| `app/` | die App |
+| `demo-tree/` | Demo-Stammbaum „Familie Falkenrath" (GEDCOM + Bilder, frei erfunden, CC0) |
+| `docs/` | Gestaltungs-Leitfaden und Bildschirmfotos |
+| `tools/` | Hilfsskripte: Demo-Baum erzeugen, Server prüfen, UI-Tests per adb |
 
-## Bauen
+## Lizenz
 
-JDK 21 nötig (wie bei den anderen Projekten):
+[GPL-3.0](LICENSE), wie webtrees. Der Demo-Stammbaum in `demo-tree/` steht unter CC0.
 
-    JAVA_HOME=/home/thobug/.jdks/jdk-21.0.12+8 ./gradlew :app:assembleDebug --offline
-
-## Gegen die lokale Testinstanz testen
-
-    cd testsite/webtrees && php -S 127.0.0.1:8377 -t .
-    adb reverse tcp:8377 tcp:8377        # Gerät erreicht den Rechner unter 127.0.0.1:8377
-
-In der App als Adresse `http://127.0.0.1:8377` eingeben (Klartext-HTTP ist nur im Debug-Build erlaubt).
-Login und Bäume: siehe `testsite/README.md`.
+Verwandt: [WebtreesAnd (Wrapper)](https://github.com/thobgg/WebtreesAnd) – die schlanke WebView-Hülle für alle,
+die kein Modul installieren möchten.
