@@ -125,6 +125,8 @@
     <string name="tree_find">Find a person…</string>
     <string name="tree_generations">%1$d generations</string>
     <string name="tree_fullscreen">Full screen</string>
+    <string name="tree_settings">Tree view</string>
+    <string name="tree_show_siblings">Show siblings and their partners</string>
     <string name="tree_fit">Show everything</string>
     <string name="tree_zoom_in">Zoom in</string>
     <string name="tree_zoom_out">Zoom out</string>

@@ -18,8 +18,9 @@ with your own data on your own server.
 
 ## Features
 
-- **The tree is the centre:** hourglass view with ancestors, partners, children and grandchildren; pan and zoom freely,
-  expand branches upwards, make any person the focus
+- **The tree is the centre:** hourglass view with ancestors, partners, children and grandchildren – plus, as in
+  MyHeritage's family view, the siblings of the focus person and of their ancestors with partners (can be switched off);
+  pan and zoom freely, expand branches upwards, make any person the focus
 - **Profile:** life as a timeline (including marriage and births of children), relationship to yourself
   (“paternal grandfather”), photos, family, map of the stations of a life (OpenStreetMap)
 - **Editing:** add, change and delete events – also marriages and other family events; add relatives right in the tree

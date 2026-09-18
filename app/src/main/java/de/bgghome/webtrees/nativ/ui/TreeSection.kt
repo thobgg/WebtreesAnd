@@ -21,6 +21,8 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
@@ -78,7 +80,10 @@ fun TreeSection(state: UiState, viewModel: AppViewModel, wide: Boolean, openWeb:
 
     Column(Modifier.fillMaxSize()) {
         if (!state.treeFullscreen) {
-            TreeTitleBar(state, viewModel, openWeb) { GenerationsChip(state, viewModel) }
+            TreeTitleBar(state, viewModel, openWeb) {
+                GenerationsChip(state, viewModel)
+                TreeSettings(state, viewModel)
+            }
             FindPersonField { viewModel.setSection(Section.Search) }
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
         }
@@ -138,8 +143,9 @@ private fun TreeCanvas(state: UiState, viewModel: AppViewModel, wide: Boolean, o
         if (state.root != null && (pedigree == null || descendants == null)) viewModel.loadChart()
     }
 
-    val layout = remember(pedigree, descendants, canEdit) {
-        if (pedigree != null && descendants != null) TreeLayout.build(pedigree, descendants.tree, canEdit) else null
+    val siblings = if (state.showSiblings) state.siblings.orEmpty() else emptyMap()
+    val layout = remember(pedigree, descendants, canEdit, siblings) {
+        if (pedigree != null && descendants != null) TreeLayout.build(pedigree, descendants.tree, canEdit, siblings) else null
     }
 
     FamilyTreeView(
@@ -174,6 +180,23 @@ private fun GenerationsChip(state: UiState, viewModel: AppViewModel) {
                     onClick = { open = false; viewModel.setAncestorGenerations(n) },
                 )
             }
+        }
+    }
+}
+
+/** Zahnrad: Einstellungen der Baumansicht - wie das Einstellungsblatt beim Vorbild, nur kuerzer. */
+@Composable
+private fun TreeSettings(state: UiState, viewModel: AppViewModel) {
+    var open by remember { mutableStateOf(false) }
+
+    Box {
+        IconButton(onClick = { open = true }) { Icon(Icons.Default.Settings, contentDescription = stringResource(R.string.tree_settings)) }
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.tree_show_siblings)) },
+                leadingIcon = { Checkbox(checked = state.showSiblings, onCheckedChange = null) },
+                onClick = { open = false; viewModel.setShowSiblings(!state.showSiblings) },
+            )
         }
     }
 }

@@ -22,9 +22,11 @@ import de.bgghome.webtrees.nativ.api.TreeInfo
 import de.bgghome.webtrees.nativ.api.WriteResult
 import de.bgghome.webtrees.nativ.api.WtClient
 import de.bgghome.webtrees.nativ.data.ImagePrep
+import de.bgghome.webtrees.nativ.ui.tree.Sibling
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -55,6 +57,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         /** Ab dieser API-Stufe kennt das Modul MediaList, relationship und die Personenzahl. */
         const val API_PHOTOS = 2
         const val DESCENDANT_GENERATIONS = 3
+        /** Geschwister gibt es fuer so viele Reihen von unten (Mittelperson, Eltern, Grosseltern) - je Person eine Anfrage. */
+        const val SIBLING_ROWS = 3
     }
 
     private val app = application as WtApp
@@ -237,7 +241,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             UiState(
                 screen = Screen.Main, baseUrl = it.baseUrl, userName = it.userName, info = it.info,
                 tree = tree, home = home, section = Section.Tree, ancestorGenerations = it.ancestorGenerations,
-                reminders = settings.reminders,
+                reminders = settings.reminders, showSiblings = settings.showSiblings,
             )
         }
         loadPeople(reset = true)
@@ -420,6 +424,12 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         _state.update { it.copy(ancestorGenerations = generations, pedigree = null, descendants = null) }
     }
 
+    /** Geschwister ein-/ausblenden; der Baum wird neu geladen, damit die Geschwister nachkommen. */
+    fun setShowSiblings(on: Boolean) {
+        settings.showSiblings = on
+        _state.update { it.copy(showSiblings = on, pedigree = null, descendants = null) }
+    }
+
     /** Daten fuer den Baum: Ahnen und Nachkommen der Mittelperson, beide Anfragen gleichzeitig. */
     fun loadChart() {
         val tree = _state.value.tree ?: return
@@ -434,12 +444,55 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     val descendants = async { client.descendants(tree.name, xref, DESCENDANT_GENERATIONS) }
                     pedigree.await() to descendants.await()
                 }
-                _state.update { if (it.root == xref) it.copy(pedigree = p, descendants = d) else it }
+                _state.update { if (it.root == xref) it.copy(pedigree = p, descendants = d, siblings = null) else it }
+                // Geschwister erst danach: der Baum steht schon, sie kommen nach
+                if (_state.value.showSiblings) loadSiblings(tree.name, xref, p)
             } catch (e: Exception) {
                 fail(e)
             }
         }
     }
+
+    /**
+     * Geschwister (mit Partnern) der Mittelperson, ihrer Eltern und Grosseltern - wie in der Familienansicht von
+     * MyHeritage. Das Modul hat dafuer keinen eigenen Aufruf; die Nachkommen eines Elternteils liefern sie mit.
+     * Die oberste Reihe bleibt ohne: ihre Eltern sind nicht geladen.
+     */
+    private suspend fun loadSiblings(tree: String, root: String, pedigree: Pedigree) {
+        val byNumber = pedigree.ancestors.associate { it.n to it.person }
+        val wanted = byNumber.keys.filter { n ->
+            generationOf(n) < SIBLING_ROWS && (byNumber.containsKey(2 * n) || byNumber.containsKey(2 * n + 1))
+        }
+
+        val found = coroutineScope {
+            wanted.map { n ->
+                // Ein Elternteil ohne Leserecht o. ae. kostet nur dessen Geschwistergruppe, nicht den Baum.
+                async { byNumber.getValue(n).xref to runCatching { siblingsFromParents(tree, byNumber, n) }.getOrDefault(emptyList()) }
+            }.awaitAll()
+        }.toMap()
+
+        _state.update { if (it.root == root && it.pedigree === pedigree) it.copy(siblings = found) else it }
+    }
+
+    private suspend fun siblingsFromParents(tree: String, byNumber: Map<Int, Person>, n: Int): List<Sibling> {
+        val self = byNumber.getValue(n)
+        val father = byNumber[2 * n]
+        val mother = byNumber[2 * n + 1]
+        val parent = father ?: mother ?: return emptyList()
+        val other = if (parent === father) mother else null
+
+        // Nachkommen eines Elternteils, 3 Stufen: Kinder (= Geschwister) samt deren Partnern.
+        // Nur die Verbindung mit dem anderen Elternteil - Halbgeschwister haengen an einer anderen Familie.
+        return client.descendants(tree, parent.xref, 3).tree.families
+            .filter { other == null || it.spouse?.xref == other.xref }
+            .flatMap { it.children }
+            // Private Personen ("Privat", ohne Daten) wuerden die Reihe nur verbreitern
+            .filter { it.person.xref != self.xref && !it.person.isPrivate }
+            .map { Sibling(it.person, it.families.mapNotNull { family -> family.spouse }) }
+    }
+
+    /** Generation zu einer Kekule-Nummer: 1 -> 0, 2..3 -> 1, 4..7 -> 2 ... */
+    private fun generationOf(n: Int) = 31 - Integer.numberOfLeadingZeros(n)
 
     /**
      * "Weiter nach oben": die Ahnen von Platz n nachladen und in den Baum einhaengen.
@@ -458,7 +511,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     if (state.root != root || pedigree == null) return@update state
 
                     val added = branch.ancestors.filter { it.n > 1 }.map { ancestor ->
-                        val g = 31 - Integer.numberOfLeadingZeros(ancestor.n)
+                        val g = generationOf(ancestor.n)
                         ancestor.copy(n = n * (1 shl g) + (ancestor.n - (1 shl g)))
                     }
                     val known = pedigree.ancestors.map { it.n }.toSet()

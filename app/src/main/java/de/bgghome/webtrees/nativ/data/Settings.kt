@@ -20,6 +20,11 @@ class Settings(context: Context) {
         get() = prefs.getBoolean("reminders", false)
         set(value) = prefs.edit().putBoolean("reminders", value).apply()
 
+    /** Baum: Geschwister der Mittelperson und ihrer Ahnen samt Partnern zeigen (wie die Familienansicht von MyHeritage) */
+    var showSiblings: Boolean
+        get() = prefs.getBoolean("showSiblings", true)
+        set(value) = prefs.edit().putBoolean("showSiblings", value).apply()
+
     var tree: String
         get() = prefs.getString("tree", "").orEmpty()
         set(value) = prefs.edit().putString("tree", value).apply()

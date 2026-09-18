@@ -10,6 +10,7 @@ import de.bgghome.webtrees.nativ.api.PendingRecord
 import de.bgghome.webtrees.nativ.api.Person
 import de.bgghome.webtrees.nativ.api.TagInfo
 import de.bgghome.webtrees.nativ.api.TreeInfo
+import de.bgghome.webtrees.nativ.ui.tree.Sibling
 
 // Der gesamte Zustand der Oberflaeche, den AppViewModel fuehrt und die Compose-Bildschirme nur lesen.
 
@@ -52,6 +53,9 @@ data class UiState(
     val ancestorGenerations: Int = 4,
     val pedigree: Pedigree? = null,
     val descendants: Descendants? = null,
+    /** Geschwister (mit Partnern) je XREF fuer die unteren Ahnenreihen; null = noch nicht geladen */
+    val siblings: Map<String, List<Sibling>>? = null,
+    val showSiblings: Boolean = true,
     val treeFullscreen: Boolean = false,
 
     // ── Profil-Panel ─────────────────────────────────────────────────

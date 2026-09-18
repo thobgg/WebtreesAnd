@@ -5,6 +5,7 @@ import de.bgghome.webtrees.nativ.api.DescendantFamily
 import de.bgghome.webtrees.nativ.api.DescendantNode
 import de.bgghome.webtrees.nativ.api.Pedigree
 import de.bgghome.webtrees.nativ.api.Person
+import de.bgghome.webtrees.nativ.ui.tree.Sibling
 import de.bgghome.webtrees.nativ.ui.tree.TreeLayout
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -17,7 +18,7 @@ class TreeLayoutTest {
     private fun p(xref: String, sex: String = "M") = Person(xref = xref, name = xref, sex = sex)
 
     /** Mittelperson mit zwei Ehen, Kindern, Enkeln; Ahnen lueckenhaft (Mutter fehlt, Grossvater ohne Eltern). */
-    private fun sample(canEdit: Boolean): TreeLayout {
+    private fun sample(canEdit: Boolean, siblings: Map<String, List<Sibling>> = emptyMap()): TreeLayout {
         val pedigree = Pedigree(
             root = "I1", generations = 4,
             ancestors = listOf(
@@ -37,7 +38,7 @@ class TreeLayoutTest {
             ),
         )
 
-        return TreeLayout.build(pedigree, descendants, canEdit)
+        return TreeLayout.build(pedigree, descendants, canEdit, siblings)
     }
 
     private fun assertNoOverlap(layout: TreeLayout) {
@@ -92,6 +93,32 @@ class TreeLayoutTest {
         assertTrue(y.getValue("I1") < y.getValue("C1"))
         assertTrue(y.getValue("C1") < y.getValue("G1"))
         assertEquals(y.getValue("I8"), y.getValue("I11"), 0.01f)
+    }
+
+    @Test
+    fun siblingsSitBesideTheirPersonOnTheSameRow() {
+        // Zwei Geschwister der Mittelperson (eines verheiratet), ein Bruder des Vaters, eine Schwester der Grossmutter I5
+        val layout = sample(
+            canEdit = true,
+            siblings = mapOf(
+                "I1" to listOf(Sibling(p("B1")), Sibling(p("B2", "F"), listOf(p("B2S")))),
+                "I2" to listOf(Sibling(p("U1"))),
+                "I5" to listOf(Sibling(p("A1", "F"), listOf(p("A1S")))),
+            ),
+        )
+        assertNoOverlap(layout)
+
+        val box = layout.boxes.filter { it.person != null }.associateBy { it.person!!.xref }
+        // Mittelperson und Vater: Geschwister links; Mutter-Seite (I5): rechts
+        assertEquals(box.getValue("I1").y, box.getValue("B1").y, 0.01f)
+        assertTrue(box.getValue("B2").x < box.getValue("B1").x || box.getValue("B1").x < box.getValue("I1").x)
+        assertTrue(box.getValue("B2S").x > box.getValue("B2").x && box.getValue("B2S").x < box.getValue("I1").x)
+        assertTrue(box.getValue("U1").x < box.getValue("I2").x && box.getValue("U1").y == box.getValue("I2").y)
+        assertTrue(box.getValue("A1").x > box.getValue("I5").x && box.getValue("A1S").x > box.getValue("A1").x)
+        // Der Ahnenbaum steht weiter mittig ueber der Mittelperson: Vater links, Mutter-Platzhalter rechts
+        val mother = layout.boxes.first { it.placeholder?.relation == "mother" && it.placeholder.relativeTo.xref == "I1" }
+        assertTrue(box.getValue("I2").centerX < box.getValue("I1").centerX && mother.centerX > box.getValue("I1").centerX)
+        assertTrue(layout.boxes.all { it.x >= 0 && it.x + TreeLayout.BOX_W <= layout.width })
     }
 
     @Test

@@ -18,8 +18,9 @@ ansehen **und bearbeiten**, mit den eigenen Daten auf dem eigenen Server.
 
 ## Was die App kann
 
-- **Baum als Mittelpunkt:** Sanduhr-Ansicht mit Ahnen, Partnern, Kindern und Enkeln; frei verschieben und zoomen,
-  Zweige nach oben aufklappen, jede Person zur Mittelperson machen
+- **Baum als Mittelpunkt:** Sanduhr-Ansicht mit Ahnen, Partnern, Kindern und Enkeln – dazu, wie in der
+  Familienansicht von MyHeritage, die Geschwister der Mittelperson und ihrer Ahnen samt Partnern (abschaltbar);
+  frei verschieben und zoomen, Zweige nach oben aufklappen, jede Person zur Mittelperson machen
 - **Profil:** Lebenslauf als Zeitleiste (mit Heirat und Geburten der Kinder), Verwandtschaft zur eigenen Person
   („Großvater väterlicherseits"), Fotos, Familie, Karte der Lebensstationen (OpenStreetMap)
 - **Bearbeiten:** Ereignisse anlegen, ändern, löschen – auch Heirat und andere Familienereignisse; Verwandte direkt im

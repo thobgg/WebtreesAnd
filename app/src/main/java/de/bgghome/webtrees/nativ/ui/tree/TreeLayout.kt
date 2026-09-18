@@ -4,6 +4,9 @@ import de.bgghome.webtrees.nativ.api.DescendantNode
 import de.bgghome.webtrees.nativ.api.Pedigree
 import de.bgghome.webtrees.nativ.api.Person
 
+/** Ein Geschwister einer Person im Baum, mit seinen Partnern (werden rechts daneben gezeichnet). */
+data class Sibling(val person: Person, val spouses: List<Person> = emptyList())
+
 /** Ein "+"-Kaestchen: legt relation (father|mother|spouse|child) zu relativeTo an. */
 data class Placeholder(val relation: String, val relativeTo: Person, val families: List<Pair<String, String?>> = emptyList())
 
@@ -31,7 +34,9 @@ data class Connector(val points: List<Pair<Float, Float>>)
 
 /**
  * Sanduhr-Baum: Mittelperson, Ahnen nach oben (binaer, Kekule-Nummern), Partner daneben,
- * Nachkommen nach unten. Reine Rechnung ohne Android/Compose - siehe TreeLayoutTest.
+ * Nachkommen nach unten. Dazu - wie in der Familienansicht von MyHeritage - die Geschwister der Mittelperson und
+ * ihrer Ahnen samt Partnern, vaeterlicherseits links, muetterlicherseits rechts der jeweiligen Person.
+ * Reine Rechnung ohne Android/Compose - siehe TreeLayoutTest.
  */
 class TreeLayout private constructor(
     val boxes: List<TreeBox>,
@@ -70,12 +75,17 @@ class TreeLayout private constructor(
         const val PLUS_HIT_RADIUS = 20f
         /** Abstand des Aufklapp-Symbols (Mitte) ueber der Kartenoberkante */
         const val EXPAND_OFFSET = 20f
+        /** Luft zwischen Geschwistergruppe und Person - groesser als zum Partner, sonst liest man den Schwager als Partner. */
+        const val SIBLING_GAP = 40f
 
         /** Fehlende Eltern werden nur bis zu dieser Generation als "+" angeboten, sonst wird die oberste Reihe zu voll. */
         private const val PLACEHOLDER_MAX_GEN = 3
 
-        fun build(pedigree: Pedigree, descendants: DescendantNode, canEdit: Boolean): TreeLayout {
-            val builder = Builder(pedigree, canEdit)
+        /**
+         * @param siblings Geschwister je Person (XREF -> Liste); Personen ohne Eintrag bekommen keine
+         */
+        fun build(pedigree: Pedigree, descendants: DescendantNode, canEdit: Boolean, siblings: Map<String, List<Sibling>> = emptyMap()): TreeLayout {
+            val builder = Builder(pedigree, canEdit, siblings)
 
             builder.placeDescendants(descendants, 0f, 0, isFocus = true)
             builder.placeAncestors()
@@ -84,7 +94,7 @@ class TreeLayout private constructor(
         }
     }
 
-    private class Builder(pedigree: Pedigree, val canEdit: Boolean) {
+    private class Builder(pedigree: Pedigree, val canEdit: Boolean, val siblings: Map<String, List<Sibling>>) {
         val boxes = mutableListOf<TreeBox>()
         val connectors = mutableListOf<Connector>()
         val ancestors = pedigree.ancestors.associate { it.n to it.person }
@@ -192,53 +202,108 @@ class TreeLayout private constructor(
         private fun parentsOf(n: Int): List<Int> =
             if (ancestors.containsKey(n)) listOf(2 * n, 2 * n + 1).filter(::slot) else emptyList()
 
-        private fun ancestorWidth(n: Int): Float {
-            val parents = parentsOf(n)
-            if (parents.isEmpty()) return BOX_W
+        private fun siblingsOf(n: Int): List<Sibling> = ancestors[n]?.let { siblings[it.xref] }.orEmpty()
 
-            return maxOf(BOX_W, parents.map(::ancestorWidth).sum() + (parents.size - 1) * H_GAP)
+        /** Vater (gerade Nummer) und Mittelperson bekommen ihre Geschwister links, die Mutter rechts - so bleibt das Paar beisammen. */
+        private fun siblingsOnLeft(n: Int) = n == 1 || n % 2 == 0
+
+        private fun groupWidth(group: List<Sibling>): Float {
+            if (group.isEmpty()) return 0f
+
+            val cards = group.sumOf { (BOX_W * (1 + it.spouses.size) + SPOUSE_GAP * it.spouses.size).toDouble() }.toFloat()
+
+            return cards + (group.size - 1) * H_GAP
         }
 
-        /** Legt Platz n und alles darueber an; gibt die Mitte (x) des Kaestchens zurueck. Platz 1 wird nicht gezeichnet. */
-        private fun placeAncestor(n: Int, left: Float, out: MutableList<TreeBox>, lines: MutableList<Connector>): Float {
-            val span = ancestorWidth(n)
-            val parents = parentsOf(n)
-            val y = -generationOf(n) * (BOX_H + V_GAP)
+        private val extentCache = HashMap<Int, Pair<Float, Float>>()
 
-            var parentLeft = left + (span - (parents.map(::ancestorWidth).sum() + (parents.size - 1).coerceAtLeast(0) * H_GAP)) / 2
-            val parentCenters = parents.map { parent ->
-                placeAncestor(parent, parentLeft, out, lines).also { parentLeft += ancestorWidth(parent) + H_GAP }
+        /**
+         * Wie weit der Teilbaum an Platz n nach links und rechts ueber die Mitte seiner Karte hinausragt.
+         * Die Geschwistergruppe macht ihn einseitig - deshalb zwei Werte statt einer Breite.
+         */
+        private fun extents(n: Int): Pair<Float, Float> = extentCache.getOrPut(n) {
+            val side = groupWidth(siblingsOf(n)).let { if (it == 0f) 0f else it + SIBLING_GAP }
+            var left = BOX_W / 2 + if (siblingsOnLeft(n)) side else 0f
+            var right = BOX_W / 2 + if (siblingsOnLeft(n)) 0f else side
+
+            val parents = parentsOf(n)
+            if (parents.size == 2) {
+                val (fatherLeft, fatherRight) = extents(parents[0])
+                val (motherLeft, motherRight) = extents(parents[1])
+                val half = (fatherRight + H_GAP + motherLeft) / 2
+                left = maxOf(left, half + fatherLeft)
+                right = maxOf(right, half + motherRight)
+            } else if (parents.size == 1) {
+                val (parentLeft, parentRight) = extents(parents[0])
+                left = maxOf(left, parentLeft)
+                right = maxOf(right, parentRight)
             }
 
-            val center = if (parentCenters.isEmpty()) left + span / 2 else (parentCenters.first() + parentCenters.last()) / 2
+            left to right
+        }
+
+        /** Legt Platz n (Kartenmitte bei centerX) und alles darueber an. Platz 1 selbst zeichnet placeDescendants. */
+        private fun placeAncestor(n: Int, centerX: Float) {
+            val y = -generationOf(n) * (BOX_H + V_GAP)
+            val parents = parentsOf(n)
+
+            // Eltern nebeneinander, das Paar mittig ueber dem Kind
+            val parentCenters = when (parents.size) {
+                2 -> {
+                    val half = (extents(parents[0]).second + H_GAP + extents(parents[1]).first) / 2
+                    listOf(centerX - half, centerX + half)
+                }
+                1 -> listOf(centerX)
+                else -> emptyList()
+            }
+            parents.forEachIndexed { index, parent -> placeAncestor(parent, parentCenters[index]) }
 
             if (n > 1) {
                 val person = ancestors[n]
-                out += if (person != null) {
+                boxes += if (person != null) {
                     // Eltern vorhanden, aber nicht geladen (oberste Reihe): Aufklapp-Symbol
-                    TreeBox(person = person, x = center - BOX_W / 2, y = y, ahnen = n, canExpand = n in hasParents && 2 * n !in ancestors && 2 * n + 1 !in ancestors)
+                    TreeBox(person = person, x = centerX - BOX_W / 2, y = y, ahnen = n, canExpand = n in hasParents && 2 * n !in ancestors && 2 * n + 1 !in ancestors)
                 } else {
-                    TreeBox(placeholder = Placeholder(if (n % 2 == 0) "father" else "mother", ancestors.getValue(n / 2)), x = center - BOX_W / 2, y = y)
+                    TreeBox(placeholder = Placeholder(if (n % 2 == 0) "father" else "mother", ancestors.getValue(n / 2)), x = centerX - BOX_W / 2, y = y)
                 }
             }
 
+            val railY = y - V_GAP / 2
             if (parentCenters.isNotEmpty()) {
-                val railY = y - V_GAP / 2
-                parentCenters.forEach { lines += Connector(listOf(center to y, center to railY, it to railY, it to y - V_GAP)) }
+                parentCenters.forEach { connectors += Connector(listOf(centerX to y, centerX to railY, it to railY, it to y - V_GAP)) }
             }
 
-            return center
+            placeSiblings(n, centerX, y, if (parentCenters.isEmpty()) null else railY)
+        }
+
+        /**
+         * Geschwister mit Partnern neben der Karte an Platz n. Sie haengen an derselben Elternlinie (railY) wie die
+         * Person selbst; ohne Eltern im Baum haetten sie nicht geladen werden koennen.
+         */
+        private fun placeSiblings(n: Int, centerX: Float, y: Float, railY: Float?) {
+            val group = siblingsOf(n)
+            if (group.isEmpty()) return
+
+            var x = if (siblingsOnLeft(n)) centerX - BOX_W / 2 - SIBLING_GAP - groupWidth(group) else centerX + BOX_W / 2 + SIBLING_GAP
+
+            group.forEach { sibling ->
+                val box = TreeBox(person = sibling.person, x = x, y = y).also { boxes += it }
+                x += BOX_W
+
+                sibling.spouses.forEach { spouse ->
+                    val spouseBox = TreeBox(person = spouse, x = x + SPOUSE_GAP, y = y).also { boxes += it }
+                    connectors += Connector(listOf(box.x + BOX_W to box.centerY, spouseBox.x to spouseBox.centerY))
+                    x += SPOUSE_GAP + BOX_W
+                }
+                x += H_GAP
+
+                if (railY != null) connectors += Connector(listOf(box.centerX to y, box.centerX to railY, centerX to railY))
+            }
         }
 
         fun placeAncestors() {
-            val out = mutableListOf<TreeBox>()
-            val lines = mutableListOf<Connector>()
-            val rootCenter = placeAncestor(1, 0f, out, lines)
-
-            // Der Ahnenbaum wurde fuer sich gerechnet - so verschieben, dass sein Fuss auf der Mittelperson steht.
-            val shift = focusBox.centerX - rootCenter
-            out.forEach { boxes += it.copy(x = it.x + shift) }
-            lines.forEach { line -> connectors += Connector(line.points.map { (x, y) -> x + shift to y }) }
+            // Der Ahnenbaum haengt an der Mittelperson, die placeDescendants schon gesetzt hat.
+            placeAncestor(1, focusBox.centerX)
         }
 
         fun finish(): TreeLayout {
