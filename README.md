@@ -10,6 +10,10 @@ Auf dem webtrees-Server muss das Modul [WebtreesAnd API](https://github.com/thob
 Eine native Android-App für [webtrees](https://webtrees.net/) – den eigenen Stammbaum auf Handy und Tablet
 ansehen **und bearbeiten**, mit den eigenen Daten auf dem eigenen Server.
 
+Die App bringt zwei Welten zusammen: die Person, die den Stammbaum am PC akribisch pflegt, und die Familie, die am
+Handy oder Tablet hineinschauen und mit Fotos und Hinweisen beitragen will. Die Detailarbeit bleibt am PC. Was aus der
+App kommt, landet als ausstehende Änderung in derselben webtrees-Installation, unter deren Rechten, Moderation und Regeln.
+
 | Tablet | Handy |
 | - | - |
 | ![Baum und Profil nebeneinander](docs/screenshots/tablet-baum.png) | ![Baum am Handy](docs/screenshots/handy-baum.png) |

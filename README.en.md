@@ -10,6 +10,10 @@ Your webtrees server needs the [WebtreesAnd API](https://github.com/thobgg/webtr
 A native Android app for [webtrees](https://webtrees.net/) – view **and edit** your family tree on phone and tablet,
 with your own data on your own server.
 
+The app brings two worlds together: the person who maintains the tree meticulously at the PC, and the family who want
+to look into it on a phone or tablet and contribute photos and hints. The detailed work stays at the PC. What comes from
+the app arrives as a pending change in the same webtrees installation, under its rights, moderation and rules.
+
 | Tablet | Phone |
 | - | - |
 | ![Tree and profile side by side](docs/screenshots/tablet-baum.png) | ![Tree on a phone](docs/screenshots/handy-baum.png) |
