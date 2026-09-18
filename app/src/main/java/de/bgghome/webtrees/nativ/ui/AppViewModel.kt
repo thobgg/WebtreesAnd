@@ -7,6 +7,7 @@ import android.util.Log
 import androidx.annotation.StringRes
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import de.bgghome.webtrees.nativ.BuildConfig
 import de.bgghome.webtrees.nativ.R
 import de.bgghome.webtrees.nativ.WtApp
 import de.bgghome.webtrees.nativ.api.AddIndividualRequest
@@ -88,7 +89,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun submitUrl(input: String) {
-        if (WtClient.isCleartext(input)) {
+        if (rejectCleartext(input)) {
             _state.update { it.copy(error = text(R.string.err_http_only)) }
             return
         }
@@ -139,7 +140,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun connect(url: String, tree: String, code: String, user: String) {
         if (url.isBlank() || code.isBlank()) return
 
-        if (WtClient.isCleartext(url)) {
+        if (rejectCleartext(url)) {
             _state.update { it.copy(screen = Screen.Setup, busy = false, error = text(R.string.err_http_only)) }
             return
         }
@@ -148,6 +149,12 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun cancelConnect() = _state.update { it.copy(pendingConnect = null) }
+
+    /**
+     * http:// wird abgelehnt - ausser im Debug-Build, der Klartext erlaubt (debug/AndroidManifest.xml), damit die
+     * lokale Testinstanz (php -S) erreichbar bleibt. Im Release blockiert Android Klartext ohnehin.
+     */
+    private fun rejectCleartext(input: String): Boolean = !BuildConfig.DEBUG && WtClient.isCleartext(input)
 
     /** Adresse setzen, Einmal-Code einloesen, Baum oeffnen. Eine bestehende Anmeldung an einem anderen Server wird ersetzt. */
     fun confirmConnect() {
