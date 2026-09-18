@@ -23,6 +23,8 @@ import okhttp3.Request
 import okhttp3.RequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.IOException
+import java.net.ConnectException
+import java.net.UnknownHostException
 import java.util.Locale
 import java.util.concurrent.TimeUnit
 
@@ -34,6 +36,12 @@ class ApiException(val code: String, val status: Int?) : Exception("API: $code")
  * sichtbar, CSRF-Token abgelaufen - oder das Modul ist nicht installiert (404).
  */
 class NotJsonException(val httpStatus: Int) : Exception("Keine JSON-Antwort (HTTP $httpStatus)")
+
+/**
+ * Ein Schreibzugriff wurde gesendet, aber die Verbindung brach ab, bevor eine Antwort kam. Ob der Server
+ * die Aenderung verarbeitet hat, ist unbekannt - der Nutzer muss nachsehen, bevor er sie wiederholt.
+ */
+class WriteInterruptedException(cause: IOException) : IOException(cause.message, cause)
 
 /**
  * Client fuer das webtrees-Modul "webtreesand-api".
@@ -50,6 +58,7 @@ class WtClient(private val context: Context) {
 
     val cookieJar = PersistentCookieJar(context)
 
+    /** Fuer Lesezugriffe und Bilder. Darf bei Verbindungsproblemen still wiederholen (OkHttp-Standard) - Schreibzugriffe nicht, siehe writeHttp. */
     val http: OkHttpClient = OkHttpClient.Builder()
         .cookieJar(cookieJar)
         .connectTimeout(15, TimeUnit.SECONDS)
@@ -223,6 +232,12 @@ class WtClient(private val context: Context) {
     private fun apiRoute(action: String, tree: String?): String =
         "/module/$MODULE/$action" + if (tree != null) "/$tree" else ""
 
+    /**
+     * Fuer POSTs: KEINE stille Wiederholung. OkHttp wiederholt sonst eine Anfrage, deren Verbindung nach dem Senden
+     * abbrach - hat der Server sie schon verarbeitet, entstuende das Ereignis doppelt. Teilt Verbindungen und Cookies mit http.
+     */
+    private val writeHttp: OkHttpClient = http.newBuilder().retryOnConnectionFailure(false).build()
+
     private suspend fun <T> get(action: String, tree: String?, params: Map<String, String>, deserializer: DeserializationStrategy<T>): T {
         val request = Request.Builder().url(url(apiRoute(action, tree), params)).build()
 
@@ -240,7 +255,14 @@ class WtClient(private val context: Context) {
                 .post(body)
                 .build()
 
-            return decode(execute(request), deserializer)
+            val response = try {
+                execute(request, writeHttp)
+            } catch (e: IOException) {
+                // Verbindung kam gar nicht zustande: nichts gesendet, normaler Fehler. Sonst: Ausgang unbekannt.
+                if (e is ConnectException || e is UnknownHostException) throw e else throw WriteInterruptedException(e)
+            }
+
+            return decode(response, deserializer)
         }
 
         return try {
@@ -253,8 +275,8 @@ class WtClient(private val context: Context) {
         }
     }
 
-    private suspend fun execute(request: Request): Pair<Int, String> = withContext(Dispatchers.IO) {
-        http.newCall(request).execute().use { response ->
+    private suspend fun execute(request: Request, client: OkHttpClient = http): Pair<Int, String> = withContext(Dispatchers.IO) {
+        client.newCall(request).execute().use { response ->
             val type = response.header("Content-Type").orEmpty()
             val text = response.body?.string().orEmpty()
 

@@ -74,6 +74,22 @@ fun AppRoot(viewModel: AppViewModel) {
         return
     }
 
+    // Kopplungs-Link: erst bestaetigen lassen - er kann von jeder Webseite kommen.
+    state.pendingConnect?.let { request ->
+        ConfirmDialog(
+            title = stringResource(R.string.connect_confirm_title),
+            text = stringResource(
+                R.string.connect_confirm_text,
+                request.url,
+                request.user.ifEmpty { "–" },
+                request.tree.ifEmpty { "–" },
+            ),
+            confirm = stringResource(R.string.connect_confirm_action),
+            onDismiss = viewModel::cancelConnect,
+            onConfirm = viewModel::confirmConnect,
+        )
+    }
+
     when (state.screen) {
         Screen.Loading -> LoadingScreen()
         Screen.Setup -> SetupScreen(state, viewModel::submitUrl)

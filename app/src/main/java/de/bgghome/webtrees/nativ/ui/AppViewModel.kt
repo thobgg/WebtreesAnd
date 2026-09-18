@@ -23,6 +23,7 @@ import de.bgghome.webtrees.nativ.api.PendingRecord
 import de.bgghome.webtrees.nativ.api.Person
 import de.bgghome.webtrees.nativ.api.TagInfo
 import de.bgghome.webtrees.nativ.api.TreeInfo
+import de.bgghome.webtrees.nativ.api.WriteInterruptedException
 import de.bgghome.webtrees.nativ.api.WriteResult
 import de.bgghome.webtrees.nativ.api.WtClient
 import de.bgghome.webtrees.nativ.data.ImagePrep
@@ -43,6 +44,9 @@ class UserMessageException(message: String) : Exception(message)
 
 enum class Screen { Loading, Setup, Login, Trees, Main }
 
+/** Ein Kopplungs-Link (webtreesand://connect), der auf die Bestaetigung des Nutzers wartet. */
+data class ConnectRequest(val url: String, val tree: String, val code: String, val user: String)
+
 /** Die vier Bereiche der unteren Leiste (Tablet: seitliche Leiste). */
 enum class Section { Home, Tree, Search, Photos }
 
@@ -53,6 +57,8 @@ data class UiState(
     val message: String? = null,
     val baseUrl: String = "",
     val userName: String = "",
+    /** Kopplungs-Link, der noch bestaetigt werden muss - jede Webseite koennte einen solchen Link ausloesen. */
+    val pendingConnect: ConnectRequest? = null,
     val info: Info? = null,
     val tree: TreeInfo? = null,
     val section: Section = Section.Tree,
@@ -188,10 +194,11 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
-     * "Verbinden" aus webtrees (Link webtreesand://connect): Adresse setzen, Einmal-Code einloesen, Baum oeffnen.
-     * Eine bestehende Anmeldung an einem anderen Server wird dabei ersetzt.
+     * "Verbinden" aus webtrees (Link webtreesand://connect): erst nachfragen. Einen solchen Link kann jede Webseite
+     * und jeder QR-Code ausloesen - ohne Rueckfrage liesse sich die App still an einen fremden Server binden und
+     * eine bestehende Anmeldung ersetzen. Eingeloest wird der Code erst in confirmConnect().
      */
-    fun connect(url: String, tree: String, code: String) {
+    fun connect(url: String, tree: String, code: String, user: String) {
         if (url.isBlank() || code.isBlank()) return
 
         if (WtClient.isCleartext(url)) {
@@ -199,16 +206,25 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             return
         }
 
+        _state.update { it.copy(pendingConnect = ConnectRequest(url = url.trim(), tree = tree, code = code, user = user)) }
+    }
+
+    fun cancelConnect() = _state.update { it.copy(pendingConnect = null) }
+
+    /** Adresse setzen, Einmal-Code einloesen, Baum oeffnen. Eine bestehende Anmeldung an einem anderen Server wird ersetzt. */
+    fun confirmConnect() {
+        val request = _state.value.pendingConnect ?: return
+
         client.cookieJar.clear()
-        client.baseUrl = url
+        client.baseUrl = request.url
         _state.update { UiState(screen = Screen.Loading, baseUrl = client.baseUrl, busy = true) }
 
         viewModelScope.launch {
             try {
-                val paired = client.pair(code)
+                val paired = client.pair(request.code)
                 settings.baseUrl = client.baseUrl
                 settings.userName = paired.user
-                settings.tree = paired.tree.ifEmpty { tree }
+                settings.tree = paired.tree.ifEmpty { request.tree }
                 _state.update { it.copy(userName = paired.user) }
                 applyInfo(client.info())
             } catch (e: Exception) {
@@ -723,6 +739,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             else -> text(R.string.err_unexpected, e.httpStatus)
         }
         is UserMessageException -> e.message.orEmpty()
+        is WriteInterruptedException -> text(R.string.err_write_interrupted)
         is IOException -> text(R.string.err_no_connection, e.message ?: text(R.string.err_unreachable))
         else -> e.message ?: e.javaClass.simpleName
     }

@@ -30,7 +30,7 @@ class MainActivity : ComponentActivity() {
         handleConnectLink(intent)
     }
 
-    /** "Verbinden" aus webtrees: Adresse, Baum und Einmal-Code kommen im Link - nichts davon muss getippt werden. */
+    /** "Verbinden" aus webtrees: Adresse, Baum und Einmal-Code kommen im Link - nichts muss getippt werden. Die App fragt vor dem Koppeln nach. */
     private fun handleConnectLink(intent: Intent?) {
         val uri = intent?.data ?: return
         if (uri.scheme != "webtreesand" || uri.host != "connect") return
@@ -39,6 +39,7 @@ class MainActivity : ComponentActivity() {
             url = uri.getQueryParameter("url").orEmpty(),
             tree = uri.getQueryParameter("tree").orEmpty(),
             code = uri.getQueryParameter("code").orEmpty(),
+            user = uri.getQueryParameter("user").orEmpty(),
         )
         // Den Code nicht im Intent liegen lassen (er waere nach einer Drehung des Bildschirms ohnehin verbraucht).
         intent.data = null
