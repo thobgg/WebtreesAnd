@@ -25,6 +25,11 @@ class Settings(context: Context) {
         get() = prefs.getBoolean("showSiblings", true)
         set(value) = prefs.edit().putBoolean("showSiblings", value).apply()
 
+    /** Baum: Cousins der Mittelperson (Kinder der Eltern-Geschwister) zeigen */
+    var showCousins: Boolean
+        get() = prefs.getBoolean("showCousins", true)
+        set(value) = prefs.edit().putBoolean("showCousins", value).apply()
+
     var tree: String
         get() = prefs.getString("tree", "").orEmpty()
         set(value) = prefs.edit().putString("tree", value).apply()

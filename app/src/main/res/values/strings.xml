@@ -130,6 +130,7 @@
     <string name="tree_fullscreen">Vollbild</string>
     <string name="tree_settings">Baumansicht</string>
     <string name="tree_show_siblings">Geschwister und Partner zeigen</string>
+    <string name="tree_show_cousins">Cousins und Cousinen zeigen</string>
     <string name="tree_fit">Alles zeigen</string>
     <string name="tree_zoom_in">Vergrößern</string>
     <string name="tree_zoom_out">Verkleinern</string>

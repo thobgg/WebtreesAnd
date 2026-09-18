@@ -18,7 +18,7 @@ class TreeLayoutTest {
     private fun p(xref: String, sex: String = "M") = Person(xref = xref, name = xref, sex = sex)
 
     /** Mittelperson mit zwei Ehen, Kindern, Enkeln; Ahnen lueckenhaft (Mutter fehlt, Grossvater ohne Eltern). */
-    private fun sample(canEdit: Boolean, siblings: Map<String, List<Sibling>> = emptyMap()): TreeLayout {
+    private fun sample(canEdit: Boolean, siblings: Map<String, List<Sibling>> = emptyMap(), cousins: Boolean = false): TreeLayout {
         val pedigree = Pedigree(
             root = "I1", generations = 4,
             ancestors = listOf(
@@ -38,7 +38,7 @@ class TreeLayoutTest {
             ),
         )
 
-        return TreeLayout.build(pedigree, descendants, canEdit, siblings)
+        return TreeLayout.build(pedigree, descendants, canEdit, siblings, cousins)
     }
 
     private fun assertNoOverlap(layout: TreeLayout) {
@@ -119,6 +119,30 @@ class TreeLayoutTest {
         val mother = layout.boxes.first { it.placeholder?.relation == "mother" && it.placeholder.relativeTo.xref == "I1" }
         assertTrue(box.getValue("I2").centerX < box.getValue("I1").centerX && mother.centerX > box.getValue("I1").centerX)
         assertTrue(layout.boxes.all { it.x >= 0 && it.x + TreeLayout.BOX_W <= layout.width })
+    }
+
+    @Test
+    fun cousinsHangBelowTheirParentsWithoutTouchingTheFocusRow() {
+        // Onkel U1 mit drei Kindern (breiter als seine Karte), Tante A1 (Schwester der fehlenden Mutter gibt es nicht ->
+        // Cousins nur vaeterlicherseits); die Mittelperson hat selbst zwei Geschwister in derselben Reihe.
+        val siblings = mapOf(
+            "I1" to listOf(Sibling(p("B1")), Sibling(p("B2", "F"), listOf(p("B2S")))),
+            "I2" to listOf(Sibling(p("U1"), listOf(p("U1S", "F")), listOf(p("K1"), p("K2"), p("K3")))),
+        )
+        val without = sample(canEdit = true, siblings = siblings, cousins = false)
+        val with = sample(canEdit = true, siblings = siblings, cousins = true)
+        assertNoOverlap(without)
+        assertNoOverlap(with)
+
+        assertNull(without.boxes.firstOrNull { it.person?.xref == "K1" })
+
+        val box = with.boxes.filter { it.person != null }.associateBy { it.person!!.xref }
+        // Cousins in der Reihe der Mittelperson, unter dem Onkel, links von deren Geschwistern
+        listOf("K1", "K2", "K3").forEach { assertEquals(box.getValue("I1").y, box.getValue(it).y, 0.01f) }
+        assertTrue(box.getValue("K3").x + TreeLayout.BOX_W <= box.getValue("B1").x)
+        assertTrue(box.getValue("K1").x < box.getValue("K2").x && box.getValue("K2").x < box.getValue("K3").x)
+        assertTrue(box.getValue("K1").y > box.getValue("U1").y)
+        assertTrue(with.boxes.all { it.x >= 0 && it.x + TreeLayout.BOX_W <= with.width })
     }
 
     @Test

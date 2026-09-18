@@ -144,8 +144,9 @@ private fun TreeCanvas(state: UiState, viewModel: AppViewModel, wide: Boolean, o
     }
 
     val siblings = if (state.showSiblings) state.siblings.orEmpty() else emptyMap()
-    val layout = remember(pedigree, descendants, canEdit, siblings) {
-        if (pedigree != null && descendants != null) TreeLayout.build(pedigree, descendants.tree, canEdit, siblings) else null
+    val cousins = state.showSiblings && state.showCousins
+    val layout = remember(pedigree, descendants, canEdit, siblings, cousins) {
+        if (pedigree != null && descendants != null) TreeLayout.build(pedigree, descendants.tree, canEdit, siblings, cousins) else null
     }
 
     FamilyTreeView(
@@ -196,6 +197,13 @@ private fun TreeSettings(state: UiState, viewModel: AppViewModel) {
                 text = { Text(stringResource(R.string.tree_show_siblings)) },
                 leadingIcon = { Checkbox(checked = state.showSiblings, onCheckedChange = null) },
                 onClick = { open = false; viewModel.setShowSiblings(!state.showSiblings) },
+            )
+            // Cousins gibt es nur mit Geschwistern - sie haengen unter den Geschwistern der Eltern
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.tree_show_cousins)) },
+                leadingIcon = { Checkbox(checked = state.showCousins && state.showSiblings, onCheckedChange = null, enabled = state.showSiblings) },
+                enabled = state.showSiblings,
+                onClick = { open = false; viewModel.setShowCousins(!state.showCousins) },
             )
         }
     }

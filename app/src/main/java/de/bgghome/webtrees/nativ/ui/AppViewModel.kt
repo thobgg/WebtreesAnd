@@ -241,7 +241,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             UiState(
                 screen = Screen.Main, baseUrl = it.baseUrl, userName = it.userName, info = it.info,
                 tree = tree, home = home, section = Section.Tree, ancestorGenerations = it.ancestorGenerations,
-                reminders = settings.reminders, showSiblings = settings.showSiblings,
+                reminders = settings.reminders, showSiblings = settings.showSiblings, showCousins = settings.showCousins,
             )
         }
         loadPeople(reset = true)
@@ -430,6 +430,12 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         _state.update { it.copy(showSiblings = on, pedigree = null, descendants = null) }
     }
 
+    /** Cousins ein-/ausblenden - die Daten sind mit den Geschwistern schon da, nur das Layout aendert sich. */
+    fun setShowCousins(on: Boolean) {
+        settings.showCousins = on
+        _state.update { it.copy(showCousins = on) }
+    }
+
     /** Daten fuer den Baum: Ahnen und Nachkommen der Mittelperson, beide Anfragen gleichzeitig. */
     fun loadChart() {
         val tree = _state.value.tree ?: return
@@ -454,15 +460,19 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
-     * Geschwister (mit Partnern) der Mittelperson, ihrer Eltern und Grosseltern - wie in der Familienansicht von
-     * MyHeritage. Das Modul hat dafuer keinen eigenen Aufruf; die Nachkommen eines Elternteils liefern sie mit.
-     * Die oberste Reihe bleibt ohne: ihre Eltern sind nicht geladen.
+     * Geschwister (mit Partnern und Kindern) der Mittelperson, ihrer Eltern und Grosseltern - wie in der Familienansicht
+     * von MyHeritage. Das Modul hat dafuer keinen eigenen Aufruf; die Nachkommen eines Elternteils liefern sie mit.
+     * Die oberste Reihe bleibt ohne: ihre Eltern sind nicht geladen. Kommen sie spaeter dazu ("nach oben aufklappen"),
+     * holt ein weiterer Aufruf nur die noch fehlenden Gruppen nach.
      */
     private suspend fun loadSiblings(tree: String, root: String, pedigree: Pedigree) {
         val byNumber = pedigree.ancestors.associate { it.n to it.person }
+        val known = _state.value.siblings.orEmpty()
         val wanted = byNumber.keys.filter { n ->
-            generationOf(n) < SIBLING_ROWS && (byNumber.containsKey(2 * n) || byNumber.containsKey(2 * n + 1))
+            generationOf(n) < SIBLING_ROWS && byNumber.getValue(n).xref !in known &&
+                (byNumber.containsKey(2 * n) || byNumber.containsKey(2 * n + 1))
         }
+        if (wanted.isEmpty()) return
 
         val found = coroutineScope {
             wanted.map { n ->
@@ -471,7 +481,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             }.awaitAll()
         }.toMap()
 
-        _state.update { if (it.root == root && it.pedigree === pedigree) it.copy(siblings = found) else it }
+        _state.update { if (it.root == root) it.copy(siblings = it.siblings.orEmpty() + found) else it }
     }
 
     private suspend fun siblingsFromParents(tree: String, byNumber: Map<Int, Person>, n: Int): List<Sibling> {
@@ -481,14 +491,21 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         val parent = father ?: mother ?: return emptyList()
         val other = if (parent === father) mother else null
 
-        // Nachkommen eines Elternteils, 3 Stufen: Kinder (= Geschwister) samt deren Partnern.
-        // Nur die Verbindung mit dem anderen Elternteil - Halbgeschwister haengen an einer anderen Familie.
+        // Nachkommen eines Elternteils, 3 Stufen: Kinder (= Geschwister) samt deren Partnern und Kindern (= Neffen,
+        // bei den Eltern-Geschwistern die Cousins). Nur die Verbindung mit dem anderen Elternteil - Halbgeschwister
+        // haengen an einer anderen Familie.
         return client.descendants(tree, parent.xref, 3).tree.families
             .filter { other == null || it.spouse?.xref == other.xref }
             .flatMap { it.children }
             // Private Personen ("Privat", ohne Daten) wuerden die Reihe nur verbreitern
             .filter { it.person.xref != self.xref && !it.person.isPrivate }
-            .map { Sibling(it.person, it.families.mapNotNull { family -> family.spouse }) }
+            .map { node ->
+                Sibling(
+                    node.person,
+                    spouses = node.families.mapNotNull { family -> family.spouse },
+                    children = node.families.flatMap { family -> family.children }.map { it.person }.filter { !it.isPrivate },
+                )
+            }
     }
 
     /** Generation zu einer Kekule-Nummer: 1 -> 0, 2..3 -> 1, 4..7 -> 2 ... */
@@ -517,6 +534,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     val known = pedigree.ancestors.map { it.n }.toSet()
                     state.copy(pedigree = pedigree.copy(ancestors = pedigree.ancestors + added.filter { it.n !in known }))
                 }
+                // Die Reihe, die eben ihre Eltern bekommen hat, kann jetzt auch Geschwister zeigen
+                val expanded = _state.value.pedigree
+                if (_state.value.showSiblings && expanded != null) loadSiblings(tree.name, root, expanded)
             } catch (e: Exception) {
                 fail(e)
             }

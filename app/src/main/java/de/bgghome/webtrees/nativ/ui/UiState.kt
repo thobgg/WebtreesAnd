@@ -56,6 +56,8 @@ data class UiState(
     /** Geschwister (mit Partnern) je XREF fuer die unteren Ahnenreihen; null = noch nicht geladen */
     val siblings: Map<String, List<Sibling>>? = null,
     val showSiblings: Boolean = true,
+    /** Cousins der Mittelperson unter den Geschwistern ihrer Eltern (nur zusammen mit showSiblings) */
+    val showCousins: Boolean = true,
     val treeFullscreen: Boolean = false,
 
     // ── Profil-Panel ─────────────────────────────────────────────────
