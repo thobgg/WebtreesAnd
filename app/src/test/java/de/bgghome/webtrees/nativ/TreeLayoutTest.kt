@@ -146,6 +146,112 @@ class TreeLayoutTest {
     }
 
     @Test
+    fun childrenAndSpousesKeepTheirOrder() {
+        val layout = sample(canEdit = false)
+        val box = layout.boxes.associateBy { it.person!!.xref }
+
+        // Partner rechts von der Person, die Kinder der ersten Verbindung links von denen der zweiten
+        assertTrue(box.getValue("I1").x < box.getValue("S1").x && box.getValue("S1").x < box.getValue("S2").x)
+        assertTrue(box.getValue("C1").x < box.getValue("C2").x && box.getValue("C2").x < box.getValue("C3").x)
+        assertTrue(box.getValue("G1").x < box.getValue("G2").x && box.getValue("G2").x < box.getValue("G3").x)
+        // Vater links von der Mutter, in jeder Reihe
+        assertTrue(box.getValue("I4").x < box.getValue("I5").x)
+        assertTrue(box.getValue("I8").x < box.getValue("I9").x && box.getValue("I9").x < box.getValue("I11").x)
+        // Der Enkel-Block steht unter seinem Vater C1, nicht unter der Mittelperson
+        val enkelMitte = (box.getValue("G1").centerX + box.getValue("G3").centerX) / 2
+        assertEquals(box.getValue("C1").centerX, enkelMitte, TreeLayout.BOX_W)
+    }
+
+    @Test
+    fun layoutIsDeterministic() {
+        val a = sample(canEdit = true)
+        val b = sample(canEdit = true)
+
+        assertEquals(a.boxes, b.boxes)
+        assertEquals(a.connectors, b.connectors)
+        assertEquals(a.width, b.width, 0f)
+        // Eine leere Geschwister-Tabelle aendert nichts
+        assertEquals(a.boxes, sample(canEdit = true, siblings = emptyMap()).boxes)
+    }
+
+    @Test
+    fun topRowOffersExpandingWhenParentsExistButAreNotLoaded() {
+        val pedigree = Pedigree(
+            root = "I1", generations = 2,
+            ancestors = listOf(
+                Ancestor(1, p("I1")),
+                Ancestor(2, p("I2"), hasParents = true),
+                Ancestor(3, p("I3", "F"), hasParents = false),
+            ),
+        )
+        val layout = TreeLayout.build(pedigree, DescendantNode(p("I1")), canEdit = true)
+        assertNoOverlap(layout)
+
+        val father = layout.boxes.first { it.person?.xref == "I2" }
+        val mother = layout.boxes.first { it.person?.xref == "I3" }
+        assertTrue(father.canExpand)
+        assertEquals(2, father.ahnen)
+        // Die Mutter hat keine Eltern: kein Symbol, aber als Bearbeiter zwei "+" fuer Vater und Mutter
+        assertTrue(!mother.canExpand)
+        assertEquals(2, layout.boxes.count { it.placeholder?.relativeTo?.xref == "I3" })
+        // Dem Vater wird nichts angeboten: seine Eltern gibt es schon, sie sind nur nicht geladen
+        assertEquals(0, layout.boxes.count { it.placeholder?.relativeTo?.xref == "I2" })
+        // Das Symbol sitzt mittig ueber der Karte und ist dort treffbar - daneben nicht
+        assertEquals("I2", layout.expandAt(father.centerX, father.y - TreeLayout.EXPAND_OFFSET)?.person?.xref)
+        assertNull(layout.expandAt(father.centerX + 60, father.y - TreeLayout.EXPAND_OFFSET))
+    }
+
+    @Test
+    fun expandingAddsARowAboveAndRemovesTheSymbol() {
+        // So baut das View-Model den Baum nach "nach oben aufklappen": die Ahnen von Platz 2 kommen als 4 und 5 dazu.
+        val before = Pedigree(root = "I1", generations = 2, ancestors = listOf(Ancestor(1, p("I1")), Ancestor(2, p("I2"), hasParents = true)))
+        val after = before.copy(ancestors = before.ancestors + listOf(Ancestor(4, p("I4"), hasParents = true), Ancestor(5, p("I5", "F"))))
+
+        val expanded = TreeLayout.build(after, DescendantNode(p("I1")), canEdit = false)
+        assertNoOverlap(expanded)
+
+        val box = expanded.boxes.associateBy { it.person!!.xref }
+        assertTrue(!box.getValue("I2").canExpand)
+        assertTrue(box.getValue("I4").canExpand)
+        assertTrue(box.getValue("I4").y < box.getValue("I2").y && box.getValue("I2").y < box.getValue("I1").y)
+        assertEquals(box.getValue("I4").y, box.getValue("I5").y, 0.01f)
+        // Die Eltern stehen mittig ueber I2
+        assertEquals(box.getValue("I2").centerX, (box.getValue("I4").centerX + box.getValue("I5").centerX) / 2, 0.01f)
+    }
+
+    @Test
+    fun privatePeopleGetNoPlusAndNoPlaceholders() {
+        val pedigree = Pedigree(
+            root = "I1", generations = 2,
+            ancestors = listOf(Ancestor(1, p("I1")), Ancestor(2, Person(xref = "I2", name = "Privat", isPrivate = true))),
+        )
+        val layout = TreeLayout.build(pedigree, DescendantNode(p("I1")), canEdit = true)
+
+        val father = layout.boxes.first { it.person?.xref == "I2" }
+        assertTrue(!layout.hasPlus(father))
+        assertNull(layout.plusAt(father.centerX, father.bottom))
+        assertEquals(0, layout.boxes.count { it.placeholder?.relativeTo?.xref == "I2" })
+
+        val focus = layout.focus
+        assertTrue(layout.hasPlus(focus))
+        assertEquals("I1", layout.plusAt(focus.centerX, focus.bottom)?.person?.xref)
+    }
+
+    @Test
+    fun siblingsOfTheTopRowAreDrawnWithoutAParentLine() {
+        // Geschwister gibt es nur, wenn die Eltern geladen wurden - kommt trotzdem eine Gruppe fuer die oberste
+        // Reihe, wird sie gezeichnet, aber nicht an eine Linie gehaengt.
+        val pedigree = Pedigree(root = "I1", generations = 1, ancestors = listOf(Ancestor(1, p("I1"))))
+        val layout = TreeLayout.build(pedigree, DescendantNode(p("I1")), canEdit = false, siblings = mapOf("I1" to listOf(Sibling(p("B1")))))
+        assertNoOverlap(layout)
+
+        val box = layout.boxes.associateBy { it.person!!.xref }
+        assertEquals(box.getValue("I1").y, box.getValue("B1").y, 0.01f)
+        assertTrue(box.getValue("B1").x + TreeLayout.BOX_W + TreeLayout.SIBLING_GAP <= box.getValue("I1").x + 0.01f)
+        assertTrue(layout.connectors.isEmpty())
+    }
+
+    @Test
     fun tapHitsTheRightBox() {
         val layout = sample(canEdit = false)
         val box = layout.boxes.first { it.person?.xref == "C3" }
