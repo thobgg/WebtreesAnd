@@ -24,6 +24,7 @@ import de.bgghome.webtrees.nativ.api.Person
 import de.bgghome.webtrees.nativ.api.TagInfo
 import de.bgghome.webtrees.nativ.api.TreeInfo
 import de.bgghome.webtrees.nativ.api.WriteResult
+import de.bgghome.webtrees.nativ.api.WtClient
 import de.bgghome.webtrees.nativ.data.ImagePrep
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -143,6 +144,11 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun submitUrl(input: String) {
+        if (WtClient.isCleartext(input)) {
+            _state.update { it.copy(error = text(R.string.err_http_only)) }
+            return
+        }
+
         client.baseUrl = input
         val url = client.baseUrl
 
@@ -187,6 +193,11 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
      */
     fun connect(url: String, tree: String, code: String) {
         if (url.isBlank() || code.isBlank()) return
+
+        if (WtClient.isCleartext(url)) {
+            _state.update { it.copy(screen = Screen.Setup, busy = false, error = text(R.string.err_http_only)) }
+            return
+        }
 
         client.cookieJar.clear()
         client.baseUrl = url

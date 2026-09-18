@@ -117,6 +117,7 @@
     <string name="err_unexpected">Unerwartete Antwort vom Server (HTTP %1$d). Stimmt die Adresse der webtrees-Startseite?</string>
     <string name="err_no_connection">Keine Verbindung: %1$s</string>
     <string name="err_unreachable">Server nicht erreichbar</string>
+    <string name="err_http_only">Die App verbindet sich nur verschlüsselt (https). Bitte die Adresse mit https:// eingeben – ohne Verschlüsselung würden dein Passwort und die Daten deiner Familie im Klartext übertragen.</string>
     <string name="err_module_too_old">Das Modul „WebtreesAnd API“ auf dem Server ist zu alt für diese App (Version %1$s). Bitte aktualisiere es in webtrees unter modules_v4.</string>
     <!-- Neue Struktur nach dem Vorbild MyHeritage -->
     <string name="nav_home">Start</string>

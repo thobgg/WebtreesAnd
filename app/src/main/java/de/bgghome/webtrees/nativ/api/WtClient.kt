@@ -286,14 +286,23 @@ class WtClient(private val context: Context) {
         const val MODULE = "_webtreesand-api_"
         val USER_AGENT = "webtreesAnd/${BuildConfig.VERSION_NAME} (Android ${android.os.Build.VERSION.RELEASE})"
 
+        /**
+         * Unverschluesselte Adresse (http://)? Android blockiert Klartext ohnehin - die App lehnt sie
+         * schon bei der Eingabe ab, damit der Nutzer einen verstaendlichen Hinweis statt eines
+         * Systemfehlers bekommt.
+         */
+        fun isCleartext(input: String): Boolean = input.trim().startsWith("http://", ignoreCase = true)
+
         /** "example.org/webtrees/" -> "https://example.org/webtrees" */
         fun normalizeBaseUrl(input: String): String {
             var url = input.trim()
 
             if (url.isEmpty()) return ""
 
-            if (!url.startsWith("http://") && !url.startsWith("https://")) {
-                url = "https://$url"
+            url = when {
+                url.startsWith("https://", ignoreCase = true) -> "https://" + url.drop(8)
+                url.startsWith("http://", ignoreCase = true) -> "http://" + url.drop(7)
+                else -> "https://$url"
             }
 
             // Wer die Adresse aus dem Browser kopiert, bringt oft index.php?route=... mit.
