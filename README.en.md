@@ -66,8 +66,9 @@ webtrees server (2.2.x). The webtrees core stays untouched.
 
 `minSdk` 26, `compileSdk` 36, Kotlin and Jetpack Compose; the build needs **JDK 21**.
 
-Where to start reading: `MainActivity` shows `ui/MainScreen.kt` (screen choice, navigation, menu). The logic lives in
-`ui/AppViewModel.kt`, the state in `ui/UiState.kt`. Each section has its own file (`TreeSection`, `HomeSection`,
+Where to start reading: `MainActivity` shows `ui/MainScreen.kt` (screen choice, navigation, menu). The state lives in
+`ui/UiState.kt`, held by the view model `ui/AppViewModel.kt`; its actions are grouped by area in `SessionActions`,
+`TreeActions`, `EditActions`, `PhotoActions` and `AnniversaryActions`. Each section has its own file (`TreeSection`, `HomeSection`,
 `SearchSection`, `PhotosSection`); the profile consists of `ProfilePanel`, `Timeline`, `Relatives` and `LifeMap`.
 `api/` talks to the module, `ui/tree/` lays out and draws the tree, `data/` prepares dates and photos.
 

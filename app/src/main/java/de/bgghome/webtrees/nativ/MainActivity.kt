@@ -8,6 +8,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import de.bgghome.webtrees.nativ.ui.AppRoot
 import de.bgghome.webtrees.nativ.ui.AppViewModel
+import de.bgghome.webtrees.nativ.ui.connect
 import de.bgghome.webtrees.nativ.ui.WtTheme
 
 class MainActivity : ComponentActivity() {
