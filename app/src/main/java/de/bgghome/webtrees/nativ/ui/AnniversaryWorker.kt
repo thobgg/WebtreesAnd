@@ -72,12 +72,17 @@ class AnniversaryWorker(context: Context, params: WorkerParameters) : CoroutineW
         }
 
         fun notify(context: Context, lines: List<String>) {
-            if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) return
+            // Ab Android 13 ohne erteilte Erlaubnis: still bleiben (die Oberflaeche fragt sie beim Einschalten ab).
+            val allowed = Build.VERSION.SDK_INT < 33 ||
+                ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+            if (!allowed) return
 
             val manager = context.getSystemService(NotificationManager::class.java)
-            manager.createNotificationChannel(NotificationChannel(CHANNEL, context.getString(R.string.home_anniversaries), NotificationManager.IMPORTANCE_DEFAULT))
+            val channel = NotificationChannel(CHANNEL, context.getString(R.string.home_anniversaries), NotificationManager.IMPORTANCE_DEFAULT)
+            manager.createNotificationChannel(channel)
 
-            val open = PendingIntent.getActivity(context, 0, Intent(context, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+            val flags = PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+            val open = PendingIntent.getActivity(context, 0, Intent(context, MainActivity::class.java), flags)
             val style = NotificationCompat.InboxStyle().also { style -> lines.take(6).forEach(style::addLine) }
 
             val notification = NotificationCompat.Builder(context, CHANNEL)

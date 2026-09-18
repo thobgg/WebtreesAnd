@@ -34,8 +34,20 @@ import de.bgghome.webtrees.nativ.api.TagInfo
 import de.bgghome.webtrees.nativ.data.GedcomDate
 import de.bgghome.webtrees.nativ.ui.tree.Placeholder
 import androidx.compose.ui.res.stringResource
+import androidx.annotation.StringRes
 import de.bgghome.webtrees.nativ.R
 
+// Die Dialoge der App: Rueckfrage, Auswahl, Ereignis anlegen/aendern, Verwandte anlegen.
+
+/** Textfeld ueber die volle Breite - die Formulare hier bestehen fast nur daraus. */
+@Composable
+private fun Field(value: String, onChange: (String) -> Unit, @StringRes label: Int, @StringRes hint: Int? = null, minLines: Int = 1) {
+    OutlinedTextField(
+        value = value, onValueChange = onChange, label = { Text(stringResource(label)) },
+        supportingText = hint?.let { { Text(stringResource(it)) } },
+        singleLine = minLines == 1, minLines = minLines, modifier = Modifier.fillMaxWidth(),
+    )
+}
 
 @Composable
 fun ConfirmDialog(title: String, text: String, confirm: String, onDismiss: () -> Unit, onConfirm: () -> Unit) {
@@ -88,7 +100,9 @@ fun FactDialog(fact: FactJson?, tags: List<TagInfo>, onDismiss: () -> Unit, onSa
             Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (fact == null) {
                     Box {
-                        OutlinedButton(onClick = { tagMenu = true }, modifier = Modifier.fillMaxWidth()) { Text(tag?.label ?: stringResource(R.string.fact_choose_type)) }
+                        OutlinedButton(onClick = { tagMenu = true }, modifier = Modifier.fillMaxWidth()) {
+                            Text(tag?.label ?: stringResource(R.string.fact_choose_type))
+                        }
                         DropdownMenu(expanded = tagMenu, onDismissRequest = { tagMenu = false }) {
                             tags.forEach { option ->
                                 DropdownMenuItem(text = { Text(option.label) }, onClick = { tag = option; tagMenu = false })
@@ -99,22 +113,12 @@ fun FactDialog(fact: FactJson?, tags: List<TagInfo>, onDismiss: () -> Unit, onSa
                 if (fact?.tag == "NAME") {
                     Text(stringResource(R.string.fact_name_hint), style = MaterialTheme.typography.labelMedium)
                 }
-                OutlinedTextField(
-                    value = value, onValueChange = { value = it },
-                    label = { Text(if (isNameOrNote) stringResource(R.string.fact_text) else stringResource(R.string.fact_value_hint)) },
-                    minLines = if (fact?.tag == "NOTE" || tag?.tag == "NOTE" && fact == null) 3 else 1,
-                    modifier = Modifier.fillMaxWidth(),
-                )
+                val isNote = fact?.tag == "NOTE" || (fact == null && tag?.tag == "NOTE")
+                Field(value, { value = it }, if (isNameOrNote) R.string.fact_text else R.string.fact_value_hint, minLines = if (isNote) 3 else 1)
                 if (!isNameOrNote) {
-                    OutlinedTextField(
-                        value = date, onValueChange = { date = it }, label = { Text(stringResource(R.string.fact_date)) },
-                        supportingText = { Text(stringResource(R.string.date_hint)) }, singleLine = true, modifier = Modifier.fillMaxWidth(),
-                    )
-                    OutlinedTextField(
-                        value = place, onValueChange = { place = it }, label = { Text(stringResource(R.string.fact_place)) },
-                        supportingText = { Text(stringResource(R.string.fact_place_hint)) }, singleLine = true, modifier = Modifier.fillMaxWidth(),
-                    )
-                    OutlinedTextField(value = note, onValueChange = { note = it }, label = { Text(stringResource(R.string.fact_note)) }, minLines = 2, modifier = Modifier.fillMaxWidth())
+                    Field(date, { date = it }, R.string.fact_date, hint = R.string.date_hint)
+                    Field(place, { place = it }, R.string.fact_place, hint = R.string.fact_place_hint)
+                    Field(note, { note = it }, R.string.fact_note, minLines = 2)
                 }
             }
         },
@@ -199,36 +203,46 @@ fun RelativeDialog(target: RelativeTarget, onDismiss: () -> Unit, onSave: (AddIn
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(if (target.relations.size == 1) stringResource(R.string.relative_title_single, relationLabel(target.relations.first()), person.name) else stringResource(R.string.relative_title, person.name)) },
+        title = {
+            val only = target.relations.singleOrNull()
+            Text(
+                if (only != null) stringResource(R.string.relative_title_single, relationLabel(only), person.name)
+                else stringResource(R.string.relative_title, person.name)
+            )
+        },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (target.relations.size > 1) ChipRow(target.relations.map { it to relationLabel(it) }, relation) { relation = it }
 
+                // Kind bei mehreren Partnerschaften: aus welcher Verbindung?
                 if (relation == "child" && target.families.size > 1) {
                     Text(stringResource(R.string.relative_child_of), style = MaterialTheme.typography.labelMedium)
-                    ChipRow(target.families.map { it.first to (it.second ?: stringResource(R.string.unknown_person)) }, family.orEmpty()) { family = it }
+                    val options = target.families.map { it.first to (it.second ?: stringResource(R.string.unknown_person)) }
+                    ChipRow(options, family.orEmpty()) { family = it }
                 }
 
-                OutlinedTextField(value = given, onValueChange = { given = it }, label = { Text(stringResource(R.string.field_given)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(value = surname, onValueChange = { surname = it }, label = { Text(stringResource(R.string.field_surname)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                Field(given, { given = it }, R.string.field_given)
+                Field(surname, { surname = it }, R.string.field_surname)
 
+                // Vater und Mutter haben ihr Geschlecht schon durch die Beziehung
                 if (relation != "father" && relation != "mother") {
-                    ChipRow(listOf("M" to stringResource(R.string.sex_male), "F" to stringResource(R.string.sex_female), "U" to stringResource(R.string.sex_unknown)), sex) { sex = it }
+                    val sexes = listOf(
+                        "M" to stringResource(R.string.sex_male),
+                        "F" to stringResource(R.string.sex_female),
+                        "U" to stringResource(R.string.sex_unknown),
+                    )
+                    ChipRow(sexes, sex) { sex = it }
                 }
 
-                OutlinedTextField(value = birthDate, onValueChange = { birthDate = it }, label = { Text(stringResource(R.string.field_birth_date)) }, supportingText = { Text(stringResource(R.string.date_hint)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(value = birthPlace, onValueChange = { birthPlace = it }, label = { Text(stringResource(R.string.field_birth_place)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                Field(birthDate, { birthDate = it }, R.string.field_birth_date, hint = R.string.date_hint)
+                Field(birthPlace, { birthPlace = it }, R.string.field_birth_place)
 
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Checkbox(checked = dead, onCheckedChange = { dead = it })
                     Text(stringResource(R.string.field_deceased))
                 }
-                if (dead) {
-                    OutlinedTextField(value = deathDate, onValueChange = { deathDate = it }, label = { Text(stringResource(R.string.field_death_date)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                }
-                if (relation == "spouse") {
-                    OutlinedTextField(value = marriageDate, onValueChange = { marriageDate = it }, label = { Text(stringResource(R.string.field_marriage_date)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                }
+                if (dead) Field(deathDate, { deathDate = it }, R.string.field_death_date)
+                if (relation == "spouse") Field(marriageDate, { marriageDate = it }, R.string.field_marriage_date)
             }
         },
         confirmButton = {

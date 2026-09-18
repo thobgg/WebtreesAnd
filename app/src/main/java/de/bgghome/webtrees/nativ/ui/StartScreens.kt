@@ -133,9 +133,15 @@ fun LoginScreen(state: UiState, onLogin: (String, String) -> Unit, onGuest: () -
 fun TreesScreen(state: UiState, onChoose: (de.bgghome.webtrees.nativ.api.TreeInfo) -> Unit, onLogout: () -> Unit, onLogin: () -> Unit) {
     val trees = state.info?.trees.orEmpty()
 
+    val user = state.info?.user
+    val subtitle = when {
+        user?.loggedIn == true -> stringResource(R.string.trees_signed_in_as, user.realName)
+        else -> stringResource(R.string.trees_not_signed_in)
+    }
+
     StartFrame(
         title = stringResource(R.string.trees_title),
-        subtitle = state.info?.user?.realName?.takeIf { state.info.user.loggedIn }?.let { stringResource(R.string.trees_signed_in_as, it) } ?: stringResource(R.string.trees_not_signed_in),
+        subtitle = subtitle,
         error = if (trees.isEmpty()) stringResource(R.string.trees_none) else state.error,
     ) {
         trees.forEach { tree ->

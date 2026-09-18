@@ -212,7 +212,10 @@ fun MainMenu(state: UiState, viewModel: AppViewModel, openWeb: (String) -> Unit)
                 onClick = { open = false; openWeb(state.detail?.person?.url ?: state.baseUrl) },
             )
             if (state.info?.user?.loggedIn == true) {
-                DropdownMenuItem(text = { Text(stringResource(R.string.menu_sign_out_user, state.info.user.userName)) }, onClick = { open = false; viewModel.logout() })
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.menu_sign_out_user, state.info.user.userName)) },
+                    onClick = { open = false; viewModel.logout() },
+                )
             } else {
                 DropdownMenuItem(text = { Text(stringResource(R.string.action_sign_in)) }, onClick = { open = false; viewModel.showLogin() })
             }

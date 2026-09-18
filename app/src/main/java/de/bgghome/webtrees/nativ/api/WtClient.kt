@@ -186,8 +186,11 @@ class WtClient(private val context: Context) {
         post("Unlink", tree, emptyMap(), jsonBody(UnlinkRequest.serializer(), UnlinkRequest(family, individual)))
 
     /** Ausstehende Aenderungen annehmen oder verwerfen - eines Datensatzes oder (xref = null) des ganzen Baums. */
-    suspend fun moderate(tree: String, xref: String?, accept: Boolean): ModerationResult =
-        post(if (accept) "Accept" else "Reject", tree, if (xref == null) emptyMap() else mapOf("xref" to xref), jsonBody(EmptyRequest.serializer(), EmptyRequest()), ModerationResult.serializer())
+    suspend fun moderate(tree: String, xref: String?, accept: Boolean): ModerationResult {
+        val params = if (xref == null) emptyMap() else mapOf("xref" to xref)
+
+        return post(if (accept) "Accept" else "Reject", tree, params, jsonBody(EmptyRequest.serializer(), EmptyRequest()), ModerationResult.serializer())
+    }
 
     suspend fun addIndividual(tree: String, request: AddIndividualRequest): WriteResult =
         post("AddIndividual", tree, emptyMap(), jsonBody(AddIndividualRequest.serializer(), request))

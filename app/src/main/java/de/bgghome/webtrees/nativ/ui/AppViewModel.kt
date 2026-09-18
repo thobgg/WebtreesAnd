@@ -10,20 +10,14 @@ import androidx.lifecycle.viewModelScope
 import de.bgghome.webtrees.nativ.R
 import de.bgghome.webtrees.nativ.WtApp
 import de.bgghome.webtrees.nativ.api.AddIndividualRequest
-import de.bgghome.webtrees.nativ.api.Anniversary
-import de.bgghome.webtrees.nativ.api.ApiException
 import de.bgghome.webtrees.nativ.api.Descendants
 import de.bgghome.webtrees.nativ.api.FactRequest
 import de.bgghome.webtrees.nativ.api.IndividualDetail
 import de.bgghome.webtrees.nativ.api.Info
-import de.bgghome.webtrees.nativ.api.MediaJson
 import de.bgghome.webtrees.nativ.api.NotJsonException
 import de.bgghome.webtrees.nativ.api.Pedigree
-import de.bgghome.webtrees.nativ.api.PendingRecord
 import de.bgghome.webtrees.nativ.api.Person
-import de.bgghome.webtrees.nativ.api.TagInfo
 import de.bgghome.webtrees.nativ.api.TreeInfo
-import de.bgghome.webtrees.nativ.api.WriteInterruptedException
 import de.bgghome.webtrees.nativ.api.WriteResult
 import de.bgghome.webtrees.nativ.api.WtClient
 import de.bgghome.webtrees.nativ.data.ImagePrep
@@ -39,69 +33,13 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.IOException
 
-/** Ein Fehler, dessen Text schon fuer den Benutzer formuliert ist. */
-class UserMessageException(message: String) : Exception(message)
-
-enum class Screen { Loading, Setup, Login, Trees, Main }
-
-/** Ein Kopplungs-Link (webtreesand://connect), der auf die Bestaetigung des Nutzers wartet. */
-data class ConnectRequest(val url: String, val tree: String, val code: String, val user: String)
-
-/** Die vier Bereiche der unteren Leiste (Tablet: seitliche Leiste). */
-enum class Section { Home, Tree, Search, Photos }
-
-data class UiState(
-    val screen: Screen = Screen.Loading,
-    val busy: Boolean = false,
-    val error: String? = null,
-    val message: String? = null,
-    val baseUrl: String = "",
-    val userName: String = "",
-    /** Kopplungs-Link, der noch bestaetigt werden muss - jede Webseite koennte einen solchen Link ausloesen. */
-    val pendingConnect: ConnectRequest? = null,
-    val info: Info? = null,
-    val tree: TreeInfo? = null,
-    val section: Section = Section.Tree,
-    /** Bezugsperson fuer "Urgrossmutter von ...": eigene Person des Benutzers, sonst Startperson des Baums. */
-    val home: String? = null,
-    // Suche
-    val query: String = "",
-    val people: List<Person> = emptyList(),
-    val nextPage: Int? = null,
-    val loadingPeople: Boolean = false,
-    // Baum: die Mittelperson (root) ist unabhaengig von der Person im Profil-Panel (selected).
-    val root: String? = null,
-    val rootHistory: List<String> = emptyList(),
-    val ancestorGenerations: Int = 4,
-    val pedigree: Pedigree? = null,
-    val descendants: Descendants? = null,
-    val treeFullscreen: Boolean = false,
-    // Profil-Panel
-    val selected: String? = null,
-    val detail: IndividualDetail? = null,
-    val loadingDetail: Boolean = false,
-    /** Handy: das Profil als eigene Seite (am Tablet steht es immer neben dem Baum). */
-    val profileOpen: Boolean = false,
-    /** Handy: die Kurzkarte unten - nur nach einem Tipp auf eine Karte, nie von selbst beim Start. */
-    val quickCard: Boolean = false,
-    val detailTab: Int = 0,
-    /** "+" an einer Karte getippt: sobald die Details dieser Person da sind, oeffnet sich der Hinzufuegen-Dialog. */
-    val addRelativeFor: String? = null,
-    val tags: List<TagInfo> = emptyList(),
-    /** Ereignisarten fuer Familien (Heirat, Scheidung ...) */
-    val familyTags: List<TagInfo> = emptyList(),
-    val recent: List<Person> = emptyList(),
-    val anniversaries: List<Anniversary> = emptyList(),
-    /** Fuer Moderatoren: Datensaetze, deren Aenderungen auf Freigabe warten */
-    val pending: List<PendingRecord> = emptyList(),
-    val reminders: Boolean = false,
-    // Fotos
-    val media: List<MediaJson> = emptyList(),
-    val mediaNextPage: Int? = null,
-    val loadingMedia: Boolean = false,
-    val mediaLoaded: Boolean = false,
-)
-
+/**
+ * Das eine View-Model der App: haelt den UiState und spricht ueber WtClient mit dem Server.
+ *
+ * Gliederung: Einstieg (Adresse, Anmelden, Koppeln) -> Baum waehlen -> Personenliste -> Baum und Profil-Panel
+ * -> Fotos -> Schreiben -> Fehler. Jeder Netzaufruf laeuft in viewModelScope; Ergebnisse kommen nur an, wenn der
+ * Zustand noch zu ihnen passt (z. B. ist die Suche inzwischen eine andere, wird die Antwort verworfen).
+ */
 class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     private companion object {
@@ -255,7 +193,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private fun applyInfo(info: Info) {
         // Aelteres Modul als diese App braucht: klare Ansage statt spaeter raetselhafter Fehler.
         if (info.api < MIN_API) {
-            _state.update { it.copy(info = info, busy = false, screen = Screen.Setup, error = text(R.string.err_module_too_old, info.module)) }
+            _state.update {
+                it.copy(info = info, busy = false, screen = Screen.Setup, error = text(R.string.err_module_too_old, info.module))
+            }
             return
         }
 
@@ -304,8 +244,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
         if (tree.canEdit) {
             viewModelScope.launch {
-                runCatching { client.tags(tree.name, "INDI") }.onSuccess { list -> _state.update { it.copy(tags = list.data) } }
-                runCatching { client.tags(tree.name, "FAM") }.onSuccess { list -> _state.update { it.copy(familyTags = list.data) } }
+                runCatching { client.tags(tree.name, "INDI") }
+                    .onSuccess { list -> _state.update { it.copy(tags = list.data) } }
+                runCatching { client.tags(tree.name, "FAM") }
+                    .onSuccess { list -> _state.update { it.copy(familyTags = list.data) } }
             }
         }
     }
@@ -342,7 +284,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             try {
                 client.moderate(tree.name, xref, accept)
-                _state.update { it.copy(busy = false, message = text(if (accept) R.string.msg_accepted else R.string.msg_rejected), pedigree = null, descendants = null) }
+                val message = text(if (accept) R.string.msg_accepted else R.string.msg_rejected)
+                _state.update { it.copy(busy = false, message = message, pedigree = null, descendants = null) }
                 loadPending()
                 loadPeople(reset = true)
 
@@ -363,7 +306,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         if (!anniversariesSupported) return
 
         viewModelScope.launch {
-            runCatching { client.anniversaries(tree.name, 14) }.onSuccess { list -> _state.update { it.copy(anniversaries = list.data) } }
+            runCatching { client.anniversaries(tree.name, 14) }
+                .onSuccess { list -> _state.update { it.copy(anniversaries = list.data) } }
         }
     }
 
@@ -456,7 +400,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun closePanel() = _state.update { it.copy(selected = null, detail = null, profileOpen = false, addRelativeFor = null, quickCard = false) }
+    fun closePanel() = _state.update {
+        it.copy(selected = null, detail = null, profileOpen = false, addRelativeFor = null, quickCard = false)
+    }
 
     /** Tipp ins Leere: die Kurzkarte verschwindet, die Auswahl (und am Tablet das Profil) bleibt. */
     fun hideQuickCard() = _state.update { it.copy(quickCard = false) }
@@ -549,7 +495,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun canGoBack(): Boolean = _state.value.let {
-        it.screen == Screen.Main && (it.treeFullscreen || it.profileOpen || it.section != Section.Home || it.rootHistory.isNotEmpty())
+        it.screen == Screen.Main &&
+            (it.treeFullscreen || it.profileOpen || it.section != Section.Home || it.rootHistory.isNotEmpty())
     }
 
     fun refresh() {
@@ -596,11 +543,17 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     // ── Schreiben ────────────────────────────────────────────────────
 
     /** record: XREF des Datensatzes, an dem das Ereignis haengt - eine Familie (Heirat ...) oder, wenn null, die Person im Profil. */
-    fun saveFact(request: FactRequest, record: String? = null) = write(R.string.msg_saved) { tree, xref -> client.saveFact(tree, record ?: xref, request) }
+    fun saveFact(request: FactRequest, record: String? = null) = write(R.string.msg_saved) { tree, xref ->
+        client.saveFact(tree, record ?: xref, request)
+    }
 
-    fun deleteFact(factId: String, record: String? = null) = write(R.string.msg_deleted) { tree, xref -> client.deleteFact(tree, record ?: xref, factId) }
+    fun deleteFact(factId: String, record: String? = null) = write(R.string.msg_deleted) { tree, xref ->
+        client.deleteFact(tree, record ?: xref, factId)
+    }
 
-    fun unlink(family: String, individual: String) = write(R.string.msg_unlinked) { tree, _ -> client.unlink(tree, family, individual) }
+    fun unlink(family: String, individual: String) = write(R.string.msg_unlinked) { tree, _ ->
+        client.unlink(tree, family, individual)
+    }
 
     /** Person loeschen. Danach gibt es sie nicht mehr: Profil schliessen, notfalls eine andere Mittelperson nehmen. */
     fun deletePerson(xref: String) {
@@ -611,14 +564,16 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             try {
                 val result = client.deleteRecord(tree.name, xref)
-                val message = if (result.pending) text(R.string.msg_pending, text(R.string.msg_person_deleted)) else text(R.string.msg_person_deleted)
+                val done = text(R.string.msg_person_deleted)
+                val message = if (result.pending) text(R.string.msg_pending, done) else done
                 val wasRoot = _state.value.root == xref
 
                 _state.update {
                     it.copy(
                         busy = false, message = message, selected = null, detail = null, profileOpen = false,
                         pedigree = null, descendants = null, mediaLoaded = false,
-                        recent = it.recent.filter { p -> p.xref != xref }, rootHistory = it.rootHistory.filter { r -> r != xref },
+                        recent = it.recent.filter { p -> p.xref != xref },
+                        rootHistory = it.rootHistory.filter { r -> r != xref },
                     )
                 }
                 loadPeople(reset = true)
@@ -655,12 +610,15 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 .onFailure { Log.w("webtreesAnd", "Bild liess sich nicht verkleinern", it) }
                 .getOrNull()
         }
-        Log.i("webtreesAnd", "Upload $name: vorbereitet=${prepared?.size} Bytes, Limit=$limit, Server-Angabe=${_state.value.info?.maxUpload}")
+        Log.i("webtreesAnd", "Upload $name: ${prepared?.size} Bytes vorbereitet, Limit $limit (Server: ${_state.value.info?.maxUpload})")
 
         val mime = resolver.getType(uri).orEmpty()
 
         when {
-            prepared != null -> client.uploadMedia(tree, xref, prepared, name.substringBeforeLast('.') + ".jpg", "image/jpeg", title)
+            prepared != null -> {
+                val jpegName = name.substringBeforeLast('.') + ".jpg"
+                client.uploadMedia(tree, xref, prepared, jpegName, "image/jpeg", title)
+            }
             // Ein Bild, das sich nicht verkleinern liess: nicht das riesige Original hinterherschicken - das scheitert
             // am Limit des Servers nur mit einer nichtssagenden Meldung.
             mime.startsWith("image/") -> throw UserMessageException(text(R.string.err_image_prepare))
@@ -668,7 +626,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 val bytes = withContext(Dispatchers.IO) {
                     resolver.openInputStream(uri)?.use { it.readBytes() } ?: throw IOException("file not readable")
                 }
-                if (bytes.size > limit) throw UserMessageException(text(R.string.err_file_too_large, bytes.size / 1048576 + 1, limit / 1048576))
+                if (bytes.size > limit) {
+                    throw UserMessageException(text(R.string.err_file_too_large, bytes.size / 1048576 + 1, limit / 1048576))
+                }
                 client.uploadMedia(tree, xref, bytes, name, mime.ifEmpty { "application/octet-stream" }, title)
             }
         }
@@ -705,7 +665,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun fail(e: Exception) {
         // Mitten in der Arbeit keine JSON-Antwort mehr: die Sitzung ist abgelaufen.
-        if (e is NotJsonException && _state.value.screen == Screen.Main && _state.value.info?.user?.loggedIn == true) {
+        val state = _state.value
+        if (e is NotJsonException && state.screen == Screen.Main && state.info?.user?.loggedIn == true) {
             _state.update { it.copy(screen = Screen.Login, error = text(R.string.session_expired)) }
             return
         }
@@ -715,32 +676,5 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun text(@StringRes id: Int, vararg args: Any): String = getApplication<Application>().getString(id, *args)
 
-    private fun explain(e: Exception): String = when (e) {
-        is ApiException -> when (e.code) {
-            "private" -> text(R.string.err_private)
-            "not-found" -> text(R.string.err_not_found)
-            "not-editable", "not-editor" -> text(R.string.err_not_editable)
-            "fact-locked", "family-locked" -> text(R.string.err_locked)
-            "invalid-date" -> text(R.string.err_invalid_date)
-            "parent-exists" -> text(R.string.err_parent_exists)
-            "family-required" -> text(R.string.err_family_required)
-            "name-required" -> text(R.string.err_name_required)
-            "upload-not-allowed" -> text(R.string.err_upload_not_allowed)
-            "upload-failed" -> text(R.string.err_upload_failed)
-            "link-not-found" -> text(R.string.err_link_not_found)
-            "not-moderator" -> text(R.string.err_not_moderator)
-            "tree-disabled" -> text(R.string.err_tree_disabled)
-            "pair-invalid", "pair-expired" -> text(R.string.err_pair)
-            "not-supported" -> text(R.string.err_not_supported)
-            else -> text(R.string.err_rejected, e.code)
-        }
-        is NotJsonException -> when (e.httpStatus) {
-            404 -> text(R.string.err_module_missing)
-            else -> text(R.string.err_unexpected, e.httpStatus)
-        }
-        is UserMessageException -> e.message.orEmpty()
-        is WriteInterruptedException -> text(R.string.err_write_interrupted)
-        is IOException -> text(R.string.err_no_connection, e.message ?: text(R.string.err_unreachable))
-        else -> e.message ?: e.javaClass.simpleName
-    }
+    private fun explain(e: Exception): String = getApplication<Application>().explain(e)
 }

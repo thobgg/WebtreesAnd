@@ -75,6 +75,11 @@ mit dem Debug-Schlüssel signiert.
 | `docs/` | Gestaltungs-Leitfaden und Bildschirmfotos |
 | `tools/` | Hilfsskripte: Demo-Baum erzeugen, Server prüfen, UI-Tests per adb |
 
+Einstieg in den Code: `MainActivity` zeigt `ui/MainScreen.kt` (Bildschirmwahl, Navigation, Menü). Die Logik steckt in
+`ui/AppViewModel.kt`, der Zustand in `ui/UiState.kt`. Jeder Bereich hat seine Datei (`TreeSection`, `HomeSection`,
+`SearchSection`, `PhotosSection`), das Profil besteht aus `ProfilePanel`, `Timeline`, `Relatives` und `LifeMap`.
+`api/` spricht mit dem Modul, `ui/tree/` rechnet und zeichnet den Baum, `data/` bereitet Datumsangaben und Fotos auf.
+
 ## Lizenz
 
 [GPL-3.0](LICENSE), wie webtrees. Der Demo-Stammbaum in `demo-tree/` steht unter CC0.
