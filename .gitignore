@@ -18,8 +18,6 @@ keystore.properties
 testsite/
 testdata/
 
-# Das Server-Modul ist ein eigenes Git-Repo
-webtrees-module/
 
 # Python
 __pycache__/

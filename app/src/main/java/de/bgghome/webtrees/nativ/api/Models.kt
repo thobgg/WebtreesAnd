@@ -3,7 +3,7 @@ package de.bgghome.webtrees.nativ.api
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
-// JSON-Formen des webtrees-Moduls "webtreesand-api" (siehe webtrees-module/webtreesand-api/README.md).
+// JSON-Formen des webtrees-Moduls "webtreesand-api" (siehe README des Moduls: github.com/thobgg/webtreesand-api).
 
 @Serializable
 data class Info(
