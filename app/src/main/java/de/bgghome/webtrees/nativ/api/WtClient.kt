@@ -126,6 +126,10 @@ class WtClient(private val context: Context) {
     suspend fun tags(tree: String, type: String): TagList =
         get("Tags", tree, mapOf("type" to type), TagList.serializer())
 
+    /** Nur fuer Bearbeiter; "Wien, Ö" sucht je Ebene wie die Vorschlaege der webtrees-Website. */
+    suspend fun places(tree: String, query: String): PlaceList =
+        get("Places", tree, mapOf("q" to query), PlaceList.serializer())
+
     // ── Anmelden ─────────────────────────────────────────────────────
 
     /**

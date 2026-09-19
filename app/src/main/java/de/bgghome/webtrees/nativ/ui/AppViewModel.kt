@@ -39,6 +39,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         const val API_ANNIVERSARIES = 4
         /** Ab dieser API-Stufe kennt das Modul MediaList, relationship und die Personenzahl. */
         const val API_PHOTOS = 2
+        /** Ab dieser API-Stufe: Ortsvorschlaege (Places) und Ereignisdaten zusaetzlich im GEDCOM-Format. */
+        const val API_PLACES = 8
         const val DESCENDANT_GENERATIONS = 3
         /** Geschwister gibt es fuer so viele Reihen von unten (Mittelperson, Eltern, Grosseltern) - je Person eine Anfrage. */
         const val SIBLING_ROWS = 3

@@ -6,11 +6,36 @@ import de.bgghome.webtrees.nativ.R
 import de.bgghome.webtrees.nativ.api.AddIndividualRequest
 import de.bgghome.webtrees.nativ.api.FactRequest
 import de.bgghome.webtrees.nativ.api.WriteResult
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 // Bearbeiten und Schreibzugriffe: Ereignisse, Verwandte, Verknuepfungen, Loeschen - und die Freigabe ausstehender
 // Aenderungen durch Moderatoren. Jeder Schreibzugriff laeuft durch write(). Erweiterungen von AppViewModel.
+
+/**
+ * Ortsvorschlaege fuer die Formulare, oder null, wenn es keine gibt: das Modul kennt sie ab API-Stufe 8 und
+ * liefert sie nur Bearbeitern (wer nicht bearbeiten darf, sieht die Formulare ohnehin nicht).
+ */
+fun AppViewModel.placeSuggestions(): PlaceSuggest? {
+    val state = uiState.value
+    val tree = state.tree?.takeIf { it.canEdit } ?: return null
+
+    if ((state.info?.api ?: 0) < AppViewModel.API_PLACES) return null
+
+    val lookup: PlaceSuggest = { query ->
+        try {
+            client.places(tree.name, query).data
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            // Vorschlaege sind Beiwerk: klappt die Anfrage nicht, tippt man den Ort eben aus - keine Fehlermeldung.
+            emptyList()
+        }
+    }
+
+    return lookup
+}
 
 fun AppViewModel.saveFact(request: FactRequest, record: String? = null) = write(R.string.msg_saved) { tree, xref ->
     client.saveFact(tree, record ?: xref, request)

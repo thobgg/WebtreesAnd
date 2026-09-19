@@ -29,7 +29,8 @@ the app arrives as a pending change in the same webtrees installation, under its
 - **Profile:** life as a timeline (including marriage and births of children), relationship to yourself
   (“paternal grandfather”), photos, family, map of the stations of a life (OpenStreetMap)
 - **Editing:** add, change and delete events – also marriages and other family events; add relatives right in the tree
-  with the “+” on every card; remove links, delete individuals
+  with the “+” on every card; remove links, delete individuals. Dates are picked (exact, about, before, after,
+  between · day, month, year), places are suggested from the tree while typing
 - **Photos:** take or choose a picture and attach it to a person – it is shrunk to fit the server's upload limit;
   photo overview of the whole tree
 - **Anniversaries:** upcoming birthdays, wedding days and days of death, with an optional daily reminder

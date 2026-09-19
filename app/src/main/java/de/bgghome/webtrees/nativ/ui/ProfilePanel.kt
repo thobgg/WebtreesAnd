@@ -272,6 +272,7 @@ private fun ProfileDialogs(
     onPickFamily: (String) -> Unit,
 ) {
     val person = detail.person
+    val places = viewModel.placeSuggestions()
 
     when (dialog) {
         null -> Unit
@@ -292,10 +293,10 @@ private fun ProfileDialogs(
             onConfirm = { onDismiss(); viewModel.unlink(dialog.family, dialog.person.xref) },
         )
 
-        ProfileDialog.NewFact -> FactDialog(fact = null, tags = state.tags, onDismiss = onDismiss, onSave = { onDismiss(); viewModel.saveFact(it) })
+        ProfileDialog.NewFact -> FactDialog(fact = null, tags = state.tags, suggestPlaces = places, onDismiss = onDismiss, onSave = { onDismiss(); viewModel.saveFact(it) })
 
         is ProfileDialog.NewFamilyFact -> FactDialog(
-            fact = null, tags = state.familyTags, onDismiss = onDismiss,
+            fact = null, tags = state.familyTags, suggestPlaces = places, onDismiss = onDismiss,
             onSave = { onDismiss(); viewModel.saveFact(it, record = dialog.family) },
         )
 
@@ -307,7 +308,7 @@ private fun ProfileDialogs(
         )
 
         is ProfileDialog.EditFact -> FactDialog(
-            fact = dialog.fact, tags = state.tags, onDismiss = onDismiss,
+            fact = dialog.fact, tags = state.tags, suggestPlaces = places, onDismiss = onDismiss,
             onSave = { onDismiss(); viewModel.saveFact(it, dialog.record) },
         )
 

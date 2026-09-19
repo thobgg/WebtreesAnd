@@ -11,10 +11,8 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -31,23 +29,11 @@ import de.bgghome.webtrees.nativ.api.FactRequest
 import de.bgghome.webtrees.nativ.api.IndividualDetail
 import de.bgghome.webtrees.nativ.api.Person
 import de.bgghome.webtrees.nativ.api.TagInfo
-import de.bgghome.webtrees.nativ.data.GedcomDate
 import de.bgghome.webtrees.nativ.ui.tree.Placeholder
 import androidx.compose.ui.res.stringResource
-import androidx.annotation.StringRes
 import de.bgghome.webtrees.nativ.R
 
 // Die Dialoge der App: Rueckfrage, Auswahl, Ereignis anlegen/aendern, Verwandte anlegen.
-
-/** Textfeld ueber die volle Breite - die Formulare hier bestehen fast nur daraus. */
-@Composable
-private fun Field(value: String, onChange: (String) -> Unit, @StringRes label: Int, @StringRes hint: Int? = null, minLines: Int = 1) {
-    OutlinedTextField(
-        value = value, onValueChange = onChange, label = { Text(stringResource(label)) },
-        supportingText = hint?.let { { Text(stringResource(it)) } },
-        singleLine = minLines == 1, minLines = minLines, modifier = Modifier.fillMaxWidth(),
-    )
-}
 
 @Composable
 fun ConfirmDialog(title: String, text: String, confirm: String, onDismiss: () -> Unit, onConfirm: () -> Unit) {
@@ -80,16 +66,20 @@ fun ChoiceDialog(title: String, options: List<Pair<String, String>>, onDismiss: 
 
 /** fact == null: neues Ereignis (mit Auswahl der Art), sonst Aendern. */
 @Composable
-fun FactDialog(fact: FactJson?, tags: List<TagInfo>, onDismiss: () -> Unit, onSave: (FactRequest) -> Unit) {
+fun FactDialog(
+    fact: FactJson?,
+    tags: List<TagInfo>,
+    suggestPlaces: PlaceSuggest?,
+    onDismiss: () -> Unit,
+    onSave: (FactRequest) -> Unit,
+) {
     var tag by remember { mutableStateOf(tags.firstOrNull()) }
     var tagMenu by remember { mutableStateOf(false) }
     var value by remember { mutableStateOf(fact?.value.orEmpty()) }
-    var date by remember { mutableStateOf(fact?.date?.text.orEmpty()) }
+    val date = rememberDateInput(gedcom = fact?.date?.gedcom.orEmpty(), displayText = fact?.date?.text.orEmpty())
     var place by remember { mutableStateOf(fact?.place?.name.orEmpty()) }
     var note by remember { mutableStateOf(fact?.notes?.firstOrNull().orEmpty()) }
 
-    // Beim Aendern zeigt das Datumsfeld den Anzeigetext ("12. Maerz 1890"); nur wenn er angefasst wurde, wird er gesendet.
-    val originalDate = fact?.date?.text.orEmpty()
     val originalNote = fact?.notes?.firstOrNull().orEmpty()
     val isNameOrNote = fact?.tag == "NAME" || fact?.tag == "NOTE" || (fact == null && tag?.tag == "NOTE")
 
@@ -116,21 +106,21 @@ fun FactDialog(fact: FactJson?, tags: List<TagInfo>, onDismiss: () -> Unit, onSa
                 val isNote = fact?.tag == "NOTE" || (fact == null && tag?.tag == "NOTE")
                 Field(value, { value = it }, if (isNameOrNote) R.string.fact_text else R.string.fact_value_hint, minLines = if (isNote) 3 else 1)
                 if (!isNameOrNote) {
-                    Field(date, { date = it }, R.string.fact_date, hint = R.string.date_hint)
-                    Field(place, { place = it }, R.string.fact_place, hint = R.string.fact_place_hint)
+                    DateInput(date, R.string.fact_date)
+                    PlaceField(place, { place = it }, R.string.fact_place, suggestPlaces, hint = R.string.fact_place_hint)
                     Field(note, { note = it }, R.string.fact_note, minLines = 2)
                 }
             }
         },
         confirmButton = {
             TextButton(
-                enabled = fact != null || tag != null,
+                enabled = (fact != null || tag != null) && date.result != null,
                 onClick = {
                     onSave(
                         if (fact == null) {
                             FactRequest(
                                 tag = tag?.tag, value = value.trim(),
-                                date = GedcomDate.fromInput(date).ifEmpty { null },
+                                date = date.result?.ifEmpty { null },
                                 place = place.trim().ifEmpty { null },
                                 note = note.trim().ifEmpty { null },
                             )
@@ -139,7 +129,7 @@ fun FactDialog(fact: FactJson?, tags: List<TagInfo>, onDismiss: () -> Unit, onSa
                             FactRequest(
                                 factId = fact.id,
                                 value = value.trim().takeIf { it != fact.value },
-                                date = if (date.trim() != originalDate) GedcomDate.fromInput(date) else null,
+                                date = if (date.changed) date.result else null,
                                 place = place.trim().takeIf { it != fact.place?.name.orEmpty() },
                                 note = note.trim().takeIf { it != originalNote },
                             )
@@ -182,7 +172,7 @@ data class RelativeTarget(
 }
 
 @Composable
-fun RelativeDialog(target: RelativeTarget, onDismiss: () -> Unit, onSave: (AddIndividualRequest) -> Unit) {
+fun RelativeDialog(target: RelativeTarget, suggestPlaces: PlaceSuggest?, onDismiss: () -> Unit, onSave: (AddIndividualRequest) -> Unit) {
     val person = target.person
     val ownSurname = person.sortName.substringBefore(',', "").trim()
 
@@ -194,12 +184,14 @@ fun RelativeDialog(target: RelativeTarget, onDismiss: () -> Unit, onSave: (AddIn
         mutableStateOf(if (relation == "father" || (relation == "child" && person.sex != "F")) ownSurname else "")
     }
     var sex by remember { mutableStateOf("U") }
-    var birthDate by remember { mutableStateOf("") }
+    val birthDate = rememberDateInput()
     var birthPlace by remember { mutableStateOf("") }
     // Eltern eines Verstorbenen sind fast immer selbst verstorben.
     var dead by remember(relation) { mutableStateOf((relation == "father" || relation == "mother") && person.isDead) }
-    var deathDate by remember { mutableStateOf("") }
-    var marriageDate by remember { mutableStateOf("") }
+    val deathDate = rememberDateInput()
+    var deathPlace by remember { mutableStateOf("") }
+    val marriageDate = rememberDateInput()
+    var marriagePlace by remember { mutableStateOf("") }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -234,20 +226,27 @@ fun RelativeDialog(target: RelativeTarget, onDismiss: () -> Unit, onSave: (AddIn
                     ChipRow(sexes, sex) { sex = it }
                 }
 
-                Field(birthDate, { birthDate = it }, R.string.field_birth_date, hint = R.string.date_hint)
-                Field(birthPlace, { birthPlace = it }, R.string.field_birth_place)
+                DateInput(birthDate, R.string.field_birth_date)
+                PlaceField(birthPlace, { birthPlace = it }, R.string.field_birth_place, suggestPlaces)
 
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Checkbox(checked = dead, onCheckedChange = { dead = it })
                     Text(stringResource(R.string.field_deceased))
                 }
-                if (dead) Field(deathDate, { deathDate = it }, R.string.field_death_date)
-                if (relation == "spouse") Field(marriageDate, { marriageDate = it }, R.string.field_marriage_date)
+                if (dead) {
+                    DateInput(deathDate, R.string.field_death_date)
+                    PlaceField(deathPlace, { deathPlace = it }, R.string.field_death_place, suggestPlaces)
+                }
+                if (relation == "spouse") {
+                    DateInput(marriageDate, R.string.field_marriage_date)
+                    PlaceField(marriagePlace, { marriagePlace = it }, R.string.field_marriage_place, suggestPlaces)
+                }
             }
         },
         confirmButton = {
             TextButton(
-                enabled = given.isNotBlank() || surname.isNotBlank(),
+                enabled = (given.isNotBlank() || surname.isNotBlank()) && birthDate.result != null &&
+                    (!dead || deathDate.result != null) && (relation != "spouse" || marriageDate.result != null),
                 onClick = {
                     onSave(
                         AddIndividualRequest(
@@ -257,11 +256,13 @@ fun RelativeDialog(target: RelativeTarget, onDismiss: () -> Unit, onSave: (AddIn
                             given = given.trim(),
                             surname = surname.trim(),
                             sex = sex,
-                            birthDate = GedcomDate.fromInput(birthDate).ifEmpty { null },
+                            birthDate = birthDate.result?.ifEmpty { null },
                             birthPlace = birthPlace.trim().ifEmpty { null },
                             dead = dead,
-                            deathDate = GedcomDate.fromInput(deathDate).ifEmpty { null },
-                            marriageDate = GedcomDate.fromInput(marriageDate).ifEmpty { null },
+                            deathDate = deathDate.result?.takeIf { dead }?.ifEmpty { null },
+                            deathPlace = deathPlace.trim().takeIf { dead }?.ifEmpty { null },
+                            marriageDate = marriageDate.result?.takeIf { relation == "spouse" }?.ifEmpty { null },
+                            marriagePlace = marriagePlace.trim().takeIf { relation == "spouse" }?.ifEmpty { null },
                         )
                     )
                 },
@@ -281,17 +282,3 @@ fun relationLabel(relation: String): String = stringResource(
         else -> R.string.rel_child
     }
 )
-
-@Composable
-private fun ChipRow(options: List<Pair<String, String>>, selected: String, onSelect: (String) -> Unit) {
-    // Mehrzeilig waere schoener (FlowRow), ist in dieser Compose-Version aber noch experimentell.
-    Column(verticalArrangement = Arrangement.spacedBy(0.dp)) {
-        options.chunked(3).forEach { row ->
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                row.forEach { (key, label) ->
-                    FilterChip(selected = selected == key, onClick = { onSelect(key) }, label = { Text(label) })
-                }
-            }
-        }
-    }
-}

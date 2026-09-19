@@ -39,6 +39,9 @@
     <string name="menu_switch_tree">Stammbaum wechseln</string>
     <string name="menu_open_web">webtrees im Browser-Fenster</string>
     <string name="menu_sign_out_user">Abmelden (%1$s)</string>
+    <string name="menu_about">%1$s · Version %2$s</string>
+    <string name="menu_about_module">Server-Modul %1$s</string>
+    <string name="app_author" translatable="false">Thomas Bugge</string>
     <string name="search_hint">Person suchen</string>
     <string name="search_clear">Suche leeren</string>
     <string name="list_empty">Keine Personen sichtbar.</string>
@@ -74,6 +77,29 @@
     <string name="rel_daughter">Tochter</string>
     <string name="rel_child">Kind</string>
     <string name="date_hint">z. B. 12.3.1890 · um 1850 · vor 1900 · 1900-1910</string>
+    <string name="date_exact">genau</string>
+    <string name="date_about">um</string>
+    <string name="date_before">vor</string>
+    <string name="date_after">nach</string>
+    <string name="date_between">zwischen</string>
+    <string name="date_and">und</string>
+    <string name="date_day">Tag</string>
+    <string name="date_month">Monat</string>
+    <string name="date_month_unknown">– unbekannt –</string>
+    <string name="date_year">Jahr</string>
+    <string name="date_as_text">Als Text</string>
+    <string name="date_pick">Auswählen</string>
+    <string name="date_incomplete">Es fehlt noch etwas: ein Jahr gehört immer dazu, ein Tag nur mit Monat.</string>
+    <string name="date_text_day">%1$d. %2$s %3$s</string>
+    <string name="date_text_month">%1$s %2$s</string>
+    <string name="date_text_about">um %1$s</string>
+    <string name="date_text_before">vor %1$s</string>
+    <string name="date_text_after">nach %1$s</string>
+    <string name="date_text_between">zwischen %1$s und %2$s</string>
+    <string-array name="date_months">
+        <item>Januar</item><item>Februar</item><item>März</item><item>April</item><item>Mai</item><item>Juni</item>
+        <item>Juli</item><item>August</item><item>September</item><item>Oktober</item><item>November</item><item>Dezember</item>
+    </string-array>
     <string name="fact_new">Neues Ereignis</string>
     <string name="fact_choose_type">Art wählen</string>
     <string name="fact_name_hint">Nachname zwischen Schrägstrichen: Vorname /Nachname/</string>
@@ -97,6 +123,8 @@
     <string name="field_deceased">verstorben</string>
     <string name="field_death_date">Sterbedatum</string>
     <string name="field_marriage_date">Heiratsdatum</string>
+    <string name="field_death_place">Sterbeort</string>
+    <string name="field_marriage_place">Heiratsort</string>
     <string name="msg_saved">Gespeichert</string>
     <string name="msg_deleted">Gelöscht</string>
     <string name="msg_person_created">Person angelegt</string>

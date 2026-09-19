@@ -23,6 +23,7 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -44,6 +45,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import de.bgghome.webtrees.nativ.BuildConfig
 import de.bgghome.webtrees.nativ.R
 import de.bgghome.webtrees.nativ.ui.tree.Placeholder
 
@@ -167,12 +169,13 @@ private fun MainScreen(state: UiState, viewModel: AppViewModel, openWeb: (String
     if (state.addRelativeFor != null && detail != null && detail.person.xref == state.addRelativeFor && !state.loadingDetail) {
         RelativeDialog(
             target = RelativeTarget.of(detail),
+            suggestPlaces = viewModel.placeSuggestions(),
             onDismiss = viewModel::addRelativeHandled,
             onSave = { viewModel.addRelativeHandled(); viewModel.addRelative(it) },
         )
     }
     placeholderTarget?.let { target ->
-        RelativeDialog(target = target, onDismiss = { placeholderTarget = null }, onSave = { placeholderTarget = null; viewModel.addRelative(it) })
+        RelativeDialog(target = target, suggestPlaces = viewModel.placeSuggestions(), onDismiss = { placeholderTarget = null }, onSave = { placeholderTarget = null; viewModel.addRelative(it) })
     }
 }
 
@@ -219,6 +222,25 @@ fun MainMenu(state: UiState, viewModel: AppViewModel, openWeb: (String) -> Unit)
             } else {
                 DropdownMenuItem(text = { Text(stringResource(R.string.action_sign_in)) }, onClick = { open = false; viewModel.showLogin() })
             }
+
+            // Wer und welche Fassung - hilft bei Rueckfragen ("welche Version hast du?"). Nur Anzeige, kein Knopf.
+            HorizontalDivider()
+            DropdownMenuItem(
+                enabled = false,
+                onClick = {},
+                text = {
+                    Column {
+                        Text(
+                            stringResource(R.string.menu_about, stringResource(R.string.app_name), BuildConfig.VERSION_NAME),
+                            style = MaterialTheme.typography.labelMedium,
+                        )
+                        Text(stringResource(R.string.app_author), style = MaterialTheme.typography.labelSmall)
+                        state.info?.module?.takeIf { it.isNotEmpty() }?.let { module ->
+                            Text(stringResource(R.string.menu_about_module, module), style = MaterialTheme.typography.labelSmall)
+                        }
+                    }
+                },
+            )
         }
     }
 }

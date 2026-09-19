@@ -36,6 +36,8 @@
     <string name="menu_switch_tree">Switch family tree</string>
     <string name="menu_open_web">webtrees in a browser window</string>
     <string name="menu_sign_out_user">Sign out (%1$s)</string>
+    <string name="menu_about">%1$s · version %2$s</string>
+    <string name="menu_about_module">Server module %1$s</string>
     <string name="search_hint">Search for a person</string>
     <string name="search_clear">Clear search</string>
     <string name="list_empty">No individuals visible.</string>
@@ -71,6 +73,29 @@
     <string name="rel_daughter">Daughter</string>
     <string name="rel_child">Child</string>
     <string name="date_hint">e.g. 12 Mar 1890 · about 1850 · before 1900 · 1900-1910</string>
+    <string name="date_exact">exact</string>
+    <string name="date_about">about</string>
+    <string name="date_before">before</string>
+    <string name="date_after">after</string>
+    <string name="date_between">between</string>
+    <string name="date_and">and</string>
+    <string name="date_day">Day</string>
+    <string name="date_month">Month</string>
+    <string name="date_month_unknown">– unknown –</string>
+    <string name="date_year">Year</string>
+    <string name="date_as_text">As text</string>
+    <string name="date_pick">Pick</string>
+    <string name="date_incomplete">Something is missing: a year is always needed, a day only with its month.</string>
+    <string name="date_text_day">%1$d %2$s %3$s</string>
+    <string name="date_text_month">%1$s %2$s</string>
+    <string name="date_text_about">about %1$s</string>
+    <string name="date_text_before">before %1$s</string>
+    <string name="date_text_after">after %1$s</string>
+    <string name="date_text_between">between %1$s and %2$s</string>
+    <string-array name="date_months">
+        <item>January</item><item>February</item><item>March</item><item>April</item><item>May</item><item>June</item>
+        <item>July</item><item>August</item><item>September</item><item>October</item><item>November</item><item>December</item>
+    </string-array>
     <string name="fact_new">New event</string>
     <string name="fact_choose_type">Choose type</string>
     <string name="fact_name_hint">Surname between slashes: Given names /Surname/</string>
@@ -94,6 +119,8 @@
     <string name="field_deceased">deceased</string>
     <string name="field_death_date">Date of death</string>
     <string name="field_marriage_date">Date of marriage</string>
+    <string name="field_death_place">Place of death</string>
+    <string name="field_marriage_place">Place of marriage</string>
     <string name="msg_saved">Saved</string>
     <string name="msg_deleted">Deleted</string>
     <string name="msg_person_created">Person created</string>

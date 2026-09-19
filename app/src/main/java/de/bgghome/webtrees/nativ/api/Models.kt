@@ -44,7 +44,13 @@ data class TreeInfo(
 )
 
 @Serializable
-data class DateJson(val text: String = "", val year: Int = 0, val jd: Int = 0)
+data class DateJson(
+    val text: String = "",
+    val year: Int = 0,
+    val jd: Int = 0,
+    /** Das Datum, wie es im GEDCOM steht ("ABT 1850") - nur bei Ereignissen und erst ab API-Stufe 8, sonst leer. */
+    val gedcom: String = "",
+)
 
 @Serializable
 data class PlaceJson(
@@ -134,6 +140,10 @@ data class IndividualDetail(
     val spouseFamilies: List<FamilyJson> = emptyList(),
     val media: List<MediaJson> = emptyList(),
 )
+
+/** Antwort von Places: Ortsnamen des Baums als Vorschlaege beim Tippen. */
+@Serializable
+data class PlaceList(val query: String = "", val data: List<String> = emptyList())
 
 @Serializable
 data class PersonPage(
