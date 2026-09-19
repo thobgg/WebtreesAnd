@@ -91,5 +91,5 @@ Einstieg in den Code: `MainActivity` zeigt `ui/MainScreen.kt` (Bildschirmwahl, N
 
 [GPL-3.0](LICENSE), wie webtrees. Der Demo-Stammbaum in `demo-tree/` steht unter CC0.
 
-Verwandt: [WebtreesAnd (Wrapper)](https://github.com/thobgg/WebtreesAnd) – die schlanke WebView-Hülle für alle,
+Verwandt: [WebtreesAnd (Wrapper)](https://github.com/thobgg/WebtreesAnd-wrapper) – die schlanke WebView-Hülle für alle,
 die kein Modul installieren möchten.
