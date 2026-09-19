@@ -86,7 +86,7 @@ class AnniversaryWorker(context: Context, params: WorkerParameters) : CoroutineW
             val style = NotificationCompat.InboxStyle().also { style -> lines.take(6).forEach(style::addLine) }
 
             val notification = NotificationCompat.Builder(context, CHANNEL)
-                .setSmallIcon(R.drawable.ic_launcher_foreground)
+                .setSmallIcon(R.drawable.ic_notification)
                 .setContentTitle(context.getString(R.string.anniv_notification_title))
                 .setContentText(lines.first())
                 .setStyle(style)
